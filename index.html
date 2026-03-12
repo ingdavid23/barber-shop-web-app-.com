@@ -9,7 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script>
-    // 1. Leemos el color guardado en memoria (Si no hay, usa el dorado original)
+    // 1. Leemos el color de tu marca
     const localBrand = JSON.parse(localStorage.getItem('barber_branding') || 'null');
     const mainColorHex = (localBrand && localBrand.primaryColor) ? localBrand.primaryColor : '#FBBF24';
 
@@ -29,7 +29,7 @@
         }
     };
 
-    // 3. INYECCIÓN DIRECTA PARA LOS BOTONES CON DEGRADADO
+    // 3. INYECCIÓN DE CSS: Ocultamos las barras por defecto
     document.write(`
       <style>
         .gradient-gold {
@@ -37,8 +37,53 @@
             background-image: linear-gradient(135deg, ${mainColorHex}, rgba(0,0,0,0.3)) !important;
             border: 1px solid rgba(255,255,255,0.1) !important;
         }
+        
+        /* Grosor del scroll */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track { 
+            background: transparent !important; 
+        }
+        
+        /* Barra 100% invisible por defecto */
+        ::-webkit-scrollbar-thumb { 
+            background-color: transparent !important; 
+            border-radius: 10px;
+        }
+        
+        /* Aparece SOLO cuando el elemento tiene la clase 'is-scrolling' o al tocar la barra directamente */
+        .is-scrolling::-webkit-scrollbar-thumb,
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: ${mainColorHex} !important;
+        }
       </style>
     `);
+
+    // 4. MOTOR INTELIGENTE DE SCROLL ESTILO MAC/IOS
+    window.addEventListener('DOMContentLoaded', () => {
+        // Detecta cualquier scroll en cualquier parte de tu aplicación
+        document.addEventListener('scroll', function(e) {
+            const target = e.target;
+            
+            // Le añadimos la clase que enciende el color
+            if(target.classList && !target.classList.contains('is-scrolling')) {
+                target.classList.add('is-scrolling');
+            }
+            
+            // Reiniciamos el temporizador si sigues haciendo scroll
+            clearTimeout(target.scrollTimeout);
+            
+            // 800 milisegundos después de detenerte, la barra vuelve a desaparecer
+            target.scrollTimeout = setTimeout(function() {
+                if(target.classList) {
+                    target.classList.remove('is-scrolling');
+                }
+            }, 800); 
+            
+        }, true); // El 'true' es vital para que escuche a todos los sub-paneles
+    });
   </script>
   <style>
     .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
@@ -64,8 +109,8 @@
     </div>
    </div>
 
-   <div id="auth-screen" class="hidden min-h-full w-full">
-    <div class="min-h-full flex flex-col lg:flex-row">
+   <div id="auth-screen" class="hidden min-h-screen w-full">
+    <div class="min-h-screen flex flex-col lg:flex-row">
      <div class="lg:w-1/2 bg-gradient-to-br from-zinc-800 to-zinc-900 p-8 lg:p-16 flex flex-col justify-center relative overflow-hidden">
       <div class="absolute inset-0 opacity-10">
        <svg viewbox="0 0 100 100" class="w-full h-full">
@@ -164,7 +209,7 @@
     </div>
    </div>
 
-   <div id="main-app" class="hidden min-h-full w-full flex">
+   <div id="main-app" class="hidden h-screen w-full flex overflow-hidden bg-zinc-900">
     <aside id="sidebar" class="w-64 bg-zinc-800/50 border-r border-zinc-700/50 flex-shrink-0 hidden lg:flex flex-col">
      <div class="p-6 border-b border-zinc-700/50">
       <div class="flex items-center gap-3">
@@ -173,7 +218,7 @@
        </div><span class="font-display text-2xl text-gold-400">BARBERPRO</span>
       </div>
      </div>
-     <nav id="sidebar-nav" class="flex-1 p-4 space-y-2">
+     <nav id="sidebar-nav" class="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
       </nav>
      <div class="p-4 border-t border-zinc-700/50">
       <div id="user-info" class="flex items-center gap-3 mb-4">
