@@ -1,0 +1,3496 @@
+<!doctype html>
+<html lang="es" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BarberPro - Gestión de Barbería</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            'display': ['Bebas Neue', 'sans-serif'],
+            'body': ['Inter', 'sans-serif']
+          },
+          colors: {
+            gold: {
+              400: '#D4AF37',
+              500: '#C5A028',
+              600: '#B8941F'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+    .dark .glass { background: rgba(0, 0, 0, 0.3); }
+    .gradient-gold { background: linear-gradient(135deg, #D4AF37 0%, #B8941F 100%); }
+    .calendar-cell { transition: all 0.2s ease; }
+    .calendar-cell:hover { transform: scale(1.05); }
+    .fade-in { animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+    ::-webkit-scrollbar-thumb { background: #D4AF37; border-radius: 3px; }
+    body { box-sizing: border-box; }
+  </style>
+ </head>
+ <body class="h-full bg-zinc-900 font-body text-white overflow-auto dark">
+  <div id="app" class="min-h-full w-full">
+   
+   <div id="loading-screen" class="fixed inset-0 bg-zinc-900 flex items-center justify-center z-50">
+    <div class="text-center">
+     <div class="w-16 h-16 border-4 border-gold-400 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+     <p class="text-gold-400 font-display text-2xl">BARBERPRO</p>
+    </div>
+   </div>
+
+   <div id="auth-screen" class="hidden min-h-full w-full">
+    <div class="min-h-full flex flex-col lg:flex-row">
+     <div class="lg:w-1/2 bg-gradient-to-br from-zinc-800 to-zinc-900 p-8 lg:p-16 flex flex-col justify-center relative overflow-hidden">
+      <div class="absolute inset-0 opacity-10">
+       <svg viewbox="0 0 100 100" class="w-full h-full">
+        <pattern id="pattern" x="0" y="0" width="20" height="20" patternunits="userSpaceOnUse">
+         <circle cx="10" cy="10" r="1" fill="#D4AF37" />
+        </pattern> <rect width="100" height="100" fill="url(#pattern)" />
+       </svg>
+      </div>
+      <div class="relative z-10">
+       <div class="flex items-center gap-3 mb-6">
+        <div class="w-12 h-12 gradient-gold rounded-xl flex items-center justify-center">
+         <i data-lucide="scissors" class="w-6 h-6 text-zinc-900"></i>
+        </div>
+        <h1 id="brand-name" class="font-display text-4xl lg:text-5xl text-gold-400">BARBERPRO</h1>
+       </div>
+       <p id="welcome-text" class="text-2xl lg:text-3xl text-white/80 mb-4">Tu estilo, nuestra pasión</p>
+       <p class="text-zinc-400 max-w-md">Sistema integral de gestión de citas para barberías modernas. Reserva, gestiona y haz crecer tu negocio (Potenciado por Firebase).</p>
+       <div class="mt-12 grid grid-cols-3 gap-4">
+        <div class="glass rounded-xl p-4 text-center">
+         <i data-lucide="calendar-check" class="w-8 h-8 text-gold-400 mx-auto mb-2"></i>
+         <p class="text-sm text-zinc-300">Reservas Online</p>
+        </div>
+        <div class="glass rounded-xl p-4 text-center">
+         <i data-lucide="users" class="w-8 h-8 text-gold-400 mx-auto mb-2"></i>
+         <p class="text-sm text-zinc-300">Multi-Barbero</p>
+        </div>
+        <div class="glass rounded-xl p-4 text-center">
+         <i data-lucide="bar-chart-3" class="w-8 h-8 text-gold-400 mx-auto mb-2"></i>
+         <p class="text-sm text-zinc-300">Estadísticas</p>
+        </div>
+       </div>
+      </div>
+     </div>
+     
+     <div class="lg:w-1/2 bg-zinc-900 p-8 lg:p-16 flex items-center justify-center">
+      <div class="w-full max-w-md">
+       <div id="login-form" class="fade-in">
+        <h2 class="font-display text-3xl text-white mb-2">INICIAR SESIÓN</h2>
+        <p class="text-zinc-400 mb-8">Accede a tu cuenta para gestionar tus citas</p>
+        <div class="space-y-4">
+         <div>
+          <label class="block text-sm text-zinc-400 mb-2">Correo Electrónico</label>
+          <div class="relative">
+           <i data-lucide="mail" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"></i> <input type="email" id="login-email" placeholder="tu@email.com" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-zinc-500 focus:border-gold-400 focus:outline-none transition">
+          </div>
+         </div>
+         <div>
+          <label class="block text-sm text-zinc-400 mb-2">Contraseña</label>
+          <div class="relative">
+           <i data-lucide="lock" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"></i> <input type="password" id="login-password" placeholder="••••••••" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-zinc-500 focus:border-gold-400 focus:outline-none transition">
+          </div>
+         </div>
+         <button onclick="handleLogin()" class="w-full gradient-gold text-zinc-900 font-semibold py-3 rounded-xl hover:opacity-90 transition flex items-center justify-center gap-2"> <span>Entrar</span> <i data-lucide="arrow-right" class="w-5 h-5"></i> </button>
+        </div>
+        <div class="mt-6 text-center">
+         <p class="text-zinc-400">¿No tienes cuenta? <button onclick="showRegister()" class="text-gold-400 hover:underline">Regístrate</button></p>
+        </div>
+       </div>
+       
+       <div id="register-form" class="hidden fade-in">
+        <h2 class="font-display text-3xl text-white mb-2">CREAR CUENTA</h2>
+        <p class="text-zinc-400 mb-8">Únete a BarberPro y reserva tu próxima cita</p>
+        <div class="space-y-4">
+         <div>
+          <label class="block text-sm text-zinc-400 mb-2">Nombre Completo</label>
+          <div class="relative">
+           <i data-lucide="user" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"></i> <input type="text" id="register-name" placeholder="Tu nombre" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-zinc-500 focus:border-gold-400 focus:outline-none transition">
+          </div>
+         </div>
+         <div>
+          <label class="block text-sm text-zinc-400 mb-2">Correo Electrónico</label>
+          <div class="relative">
+           <i data-lucide="mail" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"></i> <input type="email" id="register-email" placeholder="tu@email.com" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-zinc-500 focus:border-gold-400 focus:outline-none transition">
+          </div>
+         </div>
+         <div>
+          <label class="block text-sm text-zinc-400 mb-2">Teléfono</label>
+          <div class="relative">
+           <i data-lucide="phone" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"></i> <input type="tel" id="register-phone" placeholder="+34 600 000 000" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-zinc-500 focus:border-gold-400 focus:outline-none transition">
+          </div>
+         </div>
+         <div>
+          <label class="block text-sm text-zinc-400 mb-2">Contraseña</label>
+          <div class="relative">
+           <i data-lucide="lock" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"></i> <input type="password" id="register-password" placeholder="••••••••" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-zinc-500 focus:border-gold-400 focus:outline-none transition">
+          </div>
+         </div>
+         <button onclick="handleRegister()" class="w-full gradient-gold text-zinc-900 font-semibold py-3 rounded-xl hover:opacity-90 transition flex items-center justify-center gap-2"> <span>Crear Cuenta</span> <i data-lucide="user-plus" class="w-5 h-5"></i> </button>
+        </div>
+        <div class="mt-6 text-center">
+         <p class="text-zinc-400">¿Ya tienes cuenta? <button onclick="showLogin()" class="text-gold-400 hover:underline">Inicia sesión</button></p>
+        </div>
+       </div>
+      </div>
+     </div>
+    </div>
+   </div>
+
+   <div id="main-app" class="hidden min-h-full w-full flex">
+    <aside id="sidebar" class="w-64 bg-zinc-800/50 border-r border-zinc-700/50 flex-shrink-0 hidden lg:flex flex-col">
+     <div class="p-6 border-b border-zinc-700/50">
+      <div class="flex items-center gap-3">
+       <div class="w-10 h-10 gradient-gold rounded-lg flex items-center justify-center">
+        <i data-lucide="scissors" class="w-5 h-5 text-zinc-900"></i>
+       </div><span class="font-display text-2xl text-gold-400">BARBERPRO</span>
+      </div>
+     </div>
+     <nav id="sidebar-nav" class="flex-1 p-4 space-y-2">
+      </nav>
+     <div class="p-4 border-t border-zinc-700/50">
+      <div id="user-info" class="flex items-center gap-3 mb-4">
+       <div class="w-10 h-10 bg-zinc-700 rounded-full flex items-center justify-center">
+        <i data-lucide="user" class="w-5 h-5 text-zinc-400"></i>
+       </div>
+       <div>
+        <p id="user-name" class="text-sm font-medium text-white">Usuario</p>
+        <p id="user-role" class="text-xs text-zinc-400">Rol</p>
+       </div>
+      </div>
+      <button onclick="handleLogout()" class="w-full flex items-center gap-2 text-zinc-400 hover:text-red-400 transition py-2 px-3 rounded-lg hover:bg-zinc-700/50"> 
+        <i data-lucide="log-out" class="w-4 h-4"></i> <span class="text-sm">Cerrar Sesión</span> 
+      </button>
+     </div>
+    </aside>
+    
+    <div id="mobile-header" class="lg:hidden fixed top-0 left-0 right-0 bg-zinc-800/95 backdrop-blur border-b border-zinc-700/50 z-40">
+     <div class="flex items-center justify-between p-4">
+      <div class="flex items-center gap-2">
+       <div class="w-8 h-8 gradient-gold rounded-lg flex items-center justify-center">
+        <i data-lucide="scissors" class="w-4 h-4 text-zinc-900"></i>
+       </div><span class="font-display text-xl text-gold-400">BARBERPRO</span>
+      </div>
+      <button onclick="toggleMobileMenu()" class="p-2 text-zinc-400 hover:text-white"> <i data-lucide="menu" class="w-6 h-6"></i> </button>
+     </div>
+    </div>
+    
+    <div id="mobile-menu" class="hidden fixed inset-0 bg-zinc-900/95 backdrop-blur z-50 lg:hidden">
+     <div class="flex flex-col h-full">
+      <div class="flex items-center justify-between p-4 border-b border-zinc-700/50">
+       <span class="font-display text-xl text-gold-400">MENÚ</span> <button onclick="toggleMobileMenu()" class="p-2 text-zinc-400 hover:text-white"> <i data-lucide="x" class="w-6 h-6"></i> </button>
+      </div>
+      <nav id="mobile-nav" class="flex-1 p-4 space-y-2 overflow-auto">
+       </nav>
+      <div class="p-4 border-t border-zinc-700/50">
+       <button onclick="handleLogout()" class="w-full flex items-center justify-center gap-2 text-red-400 py-3"> <i data-lucide="log-out" class="w-5 h-5"></i> <span>Cerrar Sesión</span> </button>
+      </div>
+     </div>
+    </div>
+    
+    <main id="main-content" class="flex-1 overflow-auto lg:pt-0 pt-16">
+     </main>
+   </div>
+   
+   <div id="toast-container" class="fixed bottom-4 right-4 z-[9999] pointer-events-none space-y-2"></div>
+   
+   <div id="modal-container" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div id="modal-content" class="bg-zinc-800 rounded-2xl max-w-lg w-full max-h-[90%] overflow-auto">
+     </div>
+   </div>
+  </div>
+
+  <script type="module">
+    // =============================================
+    // FIREBASE INITIALIZATION
+    // =============================================
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, onSnapshot, query, where, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDuhfgokXtOnK25CMEtREBVnUIUAaIhC2s",
+      authDomain: "barber-c9821.firebaseapp.com",
+      projectId: "barber-c9821",
+      storageBucket: "barber-c9821.firebasestorage.app",
+      messagingSenderId: "773814576373",
+      appId: "1:773814576373:web:70e6a43d13391ec380d1bc",
+      measurementId: "G-LXHR081CF2"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // =============================================
+    // APPLICATION STATE
+    // =============================================
+    window.appData = {
+      users: [],
+      services: [],
+      appointments: [],
+      promotions: [],
+      blockedSlots: [],
+      schedules: [],
+      branches: [],
+      barbers: []
+    };
+    
+    window.currentUser = null;
+    window.currentView = 'dashboard';
+    window.selectedDate = new Date();
+    window.calendarView = 'week';
+    window.currentBranch = null;
+    let unsubscribes = []; // For cleaning up Realtime listeners
+    
+    const defaultConfig = {
+      business_name: 'BARBERPRO',
+      welcome_message: 'Tu estilo, nuestra pasión'
+    };
+   // Listas vacías para que tu app inicie limpia y solo lea de Firebase
+   const defaultServicesFallback = [];
+    const defaultBarbersFallback = [];
+
+    // =============================================
+    // FIREBASE REALTIME LISTENERS
+    // =============================================
+    function setupRealtimeListeners() {
+      unsubscribes.forEach(unsub => unsub()); // clear previous
+      unsubscribes = [];
+
+      const collectionsToListen = ['appointments', 'services', 'users', 'promotions', 'blockedSlots', 'schedules', 'branches', 'barbers'];
+      
+      collectionsToListen.forEach(collectionName => {
+        const unsub = onSnapshot(collection(db, collectionName), (snapshot) => {
+          window.appData[collectionName] = snapshot.docs.map(d => ({ 
+            ...d.data(), 
+            id: d.id, 
+            __backendId: d.id // Mantener compatibilidad con tu código original!
+          }));
+          
+          if (window.currentUser) {
+            renderCurrentView();
+          }
+        });
+        unsubscribes.push(unsub);
+      });
+    }
+
+    let isAppInitialized = false; // Candado de seguridad
+
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    onSnapshot(doc(db, "users", user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        window.currentUser = { ...docSnap.data(), id: user.uid, __backendId: user.uid };
+        
+        // Si es la primera vez que entra, arranca el sistema normal
+        if (!isAppInitialized) {
+          isAppInitialized = true;
+          setupRealtimeListeners();
+          loginSuccess();
+        } else {
+          // Si ya estaba dentro y solo hubo una actualización en la base de datos, 
+          // solo refrescamos la vista actual sin "reiniciar" el login.
+          if (window.currentUser.role === 'admin') {
+            if (window.currentUser.branch_id && window.currentUser.branch_id !== 'main') {
+              window.currentBranch = window.appData.branches.find(b => b.__backendId === window.currentUser.branch_id) || { __backendId: window.currentUser.branch_id, name: 'Sucursal Principal' };
+            } else {
+              window.currentBranch = { __backendId: 'main', name: 'Sucursal Principal' };
+            }
+          }
+          renderNavigation();
+          if(window.currentUser) renderCurrentView();
+        }
+      }
+    });
+  } else {
+    isAppInitialized = false; // Se resetea al cerrar sesión
+    window.currentUser = null;
+    document.getElementById('loading-screen').classList.add('hidden');
+    document.getElementById('auth-screen').classList.remove('hidden');
+    document.getElementById('main-app').classList.add('hidden');
+  }
+  lucide.createIcons();
+});
+
+    // =============================================
+    // AUTHENTICATION
+    // =============================================
+    window.showLogin = () => {
+      document.getElementById('login-form').classList.remove('hidden');
+      document.getElementById('register-form').classList.add('hidden');
+    }
+    
+    window.showRegister = () => {
+      document.getElementById('login-form').classList.add('hidden');
+      document.getElementById('register-form').classList.remove('hidden');
+    }
+    
+    window.handleLogin = async () => {
+      const email = document.getElementById('login-email').value.trim().toLowerCase();
+      const password = document.getElementById('login-password').value;
+      
+      if (!email || !password) return showToast('Por favor completa todos los campos', 'error');
+      
+      try {
+        document.getElementById('loading-screen').classList.remove('hidden');
+        
+        // 1. Intento normal de inicio de sesión
+        await signInWithEmailAndPassword(auth, email, password);
+        
+      } catch (error) {
+        // 2. Si falla, comprobamos si es un BARBERO PRE-REGISTRADO en la base de datos
+        try {
+           const q = query(collection(db, "users"), where("email", "==", email), where("role", "==", "barber"));
+           const snapshot = await getDocs(q);
+           
+           if (!snapshot.empty) {
+              const barberDoc = snapshot.docs[0];
+              const barberData = barberDoc.data();
+              
+              // Comparamos si la contraseña que escribió coincide con la que tú le diste en el panel
+              if (barberData.pass_temporal === password) {
+                  
+                  // ¡ES CORRECTA! Le creamos su cuenta oficial en Firebase Auth en este instante
+                  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                  const newUid = userCredential.user.uid;
+                  
+                  // Transferimos todos sus permisos de Barbero a su nuevo ID oficial
+                  await setDoc(doc(db, "users", newUid), {
+                     ...barberData,
+                     pass_temporal: "", // Borramos la contraseña temporal por seguridad
+                     uid: newUid
+                  });
+                  
+                  // Borramos el documento temporal viejo
+                  if (barberDoc.id !== newUid) {
+                      await deleteDoc(doc(db, "users", barberDoc.id));
+                  }
+                  
+                  // Todo listo, el sistema detecta el login y entra solo.
+                  return; 
+              }
+           }
+        } catch(e) {
+           console.log("Error en auto-activación:", e);
+        }
+        
+        // Si no era barbero pre-registrado, o la contraseña estaba mal:
+        document.getElementById('loading-screen').classList.add('hidden');
+        showToast('Credenciales incorrectas', 'error');
+      }
+    }
+    
+    
+    window.handleRegister = async () => {
+      const name = document.getElementById('register-name').value.trim();
+      const email = document.getElementById('register-email').value.trim();
+      const phone = document.getElementById('register-phone').value.trim();
+      const password = document.getElementById('register-password').value;
+      
+      if (!name || !email || !phone || !password) return showToast('Por favor completa todos los campos', 'error');
+      
+      try {
+        document.getElementById('loading-screen').classList.remove('hidden');
+        
+        // 1. Crear el acceso oficial en Firebase Auth (La "llave")
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const uid = userCredential.user.uid;
+
+        // 2. BUSCAR si el Admin ya había pre-registrado este correo
+        const q = query(collection(db, "users"), where("email", "==", email));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          // CASO BARBERO: El Admin ya creó el documento. 
+          // Lo que hacemos es "fusionar" el registro: movemos los datos al ID correcto (el UID)
+          const existingData = querySnapshot.docs[0].data();
+          const oldDocId = querySnapshot.docs[0].id;
+
+          // Guardamos el documento con el ID de Autenticación real
+          await setDoc(doc(db, "users", uid), {
+            ...existingData,
+            phone: phone, // actualizamos con el teléfono que puso al registrarse
+            created_at: new Date().toISOString()
+          });
+
+          // Borramos el documento temporal que creó el admin
+          if (oldDocId !== uid) {
+            await deleteDoc(doc(db, "users", oldDocId));
+          }
+          
+          showToast('¡Cuenta de personal activada con éxito!', 'success');
+        } else {
+          // CASO CLIENTE: Es un usuario nuevo que no estaba en la base de datos
+          await setDoc(doc(db, "users", uid), {
+            name, email, phone, role: 'client', created_at: new Date().toISOString()
+          });
+          showToast('¡Cuenta de cliente creada!', 'success');
+        }
+      } catch (error) {
+        document.getElementById('loading-screen').classList.add('hidden');
+        showToast('Error: ' + error.message, 'error');
+      }
+    }
+    
+    function loginSuccess() {
+      document.getElementById('loading-screen').classList.add('hidden');
+      document.getElementById('auth-screen').classList.add('hidden');
+      document.getElementById('main-app').classList.remove('hidden');
+      document.getElementById('user-name').textContent = window.currentUser.name;
+      document.getElementById('user-role').textContent = getRoleLabel(window.currentUser.role);
+      
+      if (window.currentUser.role === 'admin') {
+        if (window.currentUser.branch_id) {
+          window.currentBranch = window.appData.branches.find(b => b.__backendId === window.currentUser.branch_id) || { __backendId: window.currentUser.branch_id, name: 'Sucursal Principal' };
+        } else {
+          window.currentBranch = { __backendId: 'main', name: 'Sucursal Principal' };
+        }
+      }
+      
+      renderNavigation();
+      renderCurrentView();
+      showToast(`¡Bienvenido, ${window.currentUser.name}!`, 'success');
+    }
+    
+    window.handleLogout = async () => {
+      await signOut(auth);
+      window.currentView = 'dashboard';
+      
+      // Limpiar campos del formulario de Iniciar Sesión
+      const loginEmail = document.getElementById('login-email');
+      const loginPass = document.getElementById('login-password');
+      if (loginEmail) loginEmail.value = '';
+      if (loginPass) loginPass.value = '';
+      
+      // Limpiar campos del formulario de Crear Cuenta
+      const regName = document.getElementById('register-name');
+      const regEmail = document.getElementById('register-email');
+      const regPhone = document.getElementById('register-phone');
+      const regPass = document.getElementById('register-password');
+      if (regName) regName.value = '';
+      if (regEmail) regEmail.value = '';
+      if (regPhone) regPhone.value = '';
+      if (regPass) regPass.value = '';
+    }
+    
+    function getRoleLabel(role) {
+      const labels = { admin: 'Administrador', barber: 'Barbero', client: 'Cliente' };
+      return labels[role] || role;
+    }
+
+    // =============================================
+    // NAVIGATION
+    // =============================================
+    function renderNavigation() {
+      const navItems = getNavItems();
+      const sidebarNav = document.getElementById('sidebar-nav');
+      const mobileNav = document.getElementById('mobile-nav');
+      
+      const navHTML = navItems.map(item => `
+        <button onclick="window.navigateTo('${item.view}')" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${window.currentView === item.view ? 'bg-gold-400/20 text-gold-400' : 'text-zinc-400 hover:bg-zinc-700/50 hover:text-white'}">
+          <i data-lucide="${item.icon}" class="w-5 h-5"></i>
+          <span>${item.label}</span>
+        </button>
+      `).join('');
+      
+      sidebarNav.innerHTML = navHTML;
+      mobileNav.innerHTML = navHTML;
+      lucide.createIcons();
+    }
+    
+    function getNavItems() {
+      const baseItems = [ { view: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' } ];
+      
+      // SOLUCIÓN: Si el usuario no tiene rol en la base de datos, lo tratamos como 'client' por defecto
+      const currentRole = window.currentUser.role || 'client';
+      
+      if (currentRole === 'client') {
+        return [
+          ...baseItems,
+          { view: 'services', label: 'Servicios', icon: 'scissors' },
+          { view: 'book', label: 'Reservar Cita', icon: 'calendar-plus' },
+          { view: 'my-appointments', label: 'Mis Citas', icon: 'calendar-check' },
+          { view: 'history', label: 'Historial', icon: 'history' },
+          { view: 'promotions', label: 'Promociones', icon: 'percent' }
+        ];
+      }
+      
+      if (currentRole === 'barber') {
+        return [
+          ...baseItems,
+          { view: 'today', label: 'Citas de Hoy', icon: 'calendar-days' },
+          { view: 'walk-in', label: 'Venta Directa', icon: 'banknote' },
+          { view: 'calendar', label: 'Calendario', icon: 'calendar' },
+          { view: 'schedule', label: 'Mi Horario', icon: 'clock' },
+          { view: 'clients', label: 'Clientes', icon: 'users' }
+        ];
+      }
+      
+      if (currentRole === 'admin') {
+        const items = [
+          ...baseItems,
+          // NUEVO BOTÓN AGREGADO AQUÍ:
+          { view: 'daily-sales', label: 'Ventas de Hoy', icon: 'badge-dollar-sign' }, 
+          { view: 'appointments', label: 'Todas las Citas', icon: 'calendar-range' },
+          { view: 'calendar', label: 'Calendario', icon: 'calendar' },
+          { view: 'barbers', label: 'Barberos', icon: 'users' },
+          { view: 'services-admin', label: 'Servicios', icon: 'scissors' },
+          { view: 'promotions-admin', label: 'Promociones', icon: 'percent' },
+          { view: 'users', label: 'Usuarios', icon: 'user-cog' },
+          { view: 'stats', label: 'Estadísticas', icon: 'bar-chart-3' }
+        ];
+        
+        if (!window.currentUser.branch_id || window.currentUser.branch_id === 'main') {
+          items.push({ view: 'branches', label: 'Sucursales', icon: 'store' });
+        }
+        return items;
+      }
+      
+      
+      return baseItems;
+    }
+    
+    window.navigateTo = (view) => {
+      window.currentView = view;
+      renderNavigation();
+      renderCurrentView();
+      window.toggleMobileMenu(false);
+    }
+    
+    window.toggleMobileMenu = (show) => {
+      const menu = document.getElementById('mobile-menu');
+      if (show === undefined) menu.classList.toggle('hidden');
+      else menu.classList.toggle('hidden', !show);
+    }
+
+    // =============================================
+    // VIEW RENDERING (ALL ORIGINAL VIEWS RESTORED)
+    // =============================================
+    function renderCurrentView() {
+      const mainContent = document.getElementById('main-content');
+      
+      switch(window.currentView) {
+        case 'dashboard': mainContent.innerHTML = renderDashboard(); break;
+        case 'daily-sales': mainContent.innerHTML = renderDailySalesAdmin(); break; // NUEVA PANTALLAs
+        case 'services': mainContent.innerHTML = renderServices(); break;
+        case 'book': mainContent.innerHTML = renderBooking(); break;
+        case 'my-appointments': mainContent.innerHTML = renderMyAppointments(); break;
+        case 'history': mainContent.innerHTML = renderHistory(); break;
+        case 'promotions': mainContent.innerHTML = renderPromotions(); break;
+        case 'today': mainContent.innerHTML = renderTodayAppointments(); break;
+        case 'walk-in': mainContent.innerHTML = renderWalkIn(); break; // NUEVA PANTALLA
+        case 'calendar': mainContent.innerHTML = renderCalendar(); break;
+        case 'schedule': mainContent.innerHTML = renderSchedule(); break;
+        case 'clients': mainContent.innerHTML = renderClients(); break;
+        case 'appointments': mainContent.innerHTML = renderAllAppointments(); break;
+        case 'barbers': mainContent.innerHTML = renderBarbers(); break;
+        case 'services-admin': mainContent.innerHTML = renderServicesAdmin(); break;
+        case 'promotions-admin': mainContent.innerHTML = renderPromotionsAdmin(); break;
+        case 'users': mainContent.innerHTML = renderUsers(); break;
+        case 'stats': mainContent.innerHTML = renderStats(); break;
+        case 'branches': mainContent.innerHTML = renderBranches(); break;
+        default: mainContent.innerHTML = renderDashboard();
+      }
+      lucide.createIcons();
+    }
+
+    // --- DASHBOARD VIEWS ---
+    function renderDashboard() {
+      if (window.currentUser.role === 'client') return renderClientDashboard();
+      else if (window.currentUser.role === 'barber') return renderBarberDashboard();
+      else return renderAdminDashboard();
+    }
+    
+    function renderClientDashboard() {
+      const myAppointments = window.appData.appointments.filter(a => a.client_id === window.currentUser.id && a.status !== 'cancelled');
+      const upcomingAppointments = myAppointments.filter(a => new Date(a.date) >= new Date()).slice(0, 3);
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+      const barbers = window.appData.barbers.length > 0 ? window.appData.barbers : defaultBarbersFallback;
+      
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8">
+            <h1 class="font-display text-3xl lg:text-4xl text-white mb-2">¡Hola, ${window.currentUser.name.split(' ')[0]}!</h1>
+            <p class="text-zinc-400">¿Listo para tu próximo corte?</p>
+          </div>
+          
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <button onclick="window.navigateTo('book')" class="glass rounded-xl p-6 text-center hover:bg-gold-400/10 transition group">
+              <div class="w-12 h-12 gradient-gold rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition">
+                <i data-lucide="calendar-plus" class="w-6 h-6 text-zinc-900"></i>
+              </div>
+              <p class="font-medium text-white">Reservar Cita</p>
+            </button>
+            <button onclick="window.navigateTo('services')" class="glass rounded-xl p-6 text-center hover:bg-gold-400/10 transition group">
+              <div class="w-12 h-12 bg-zinc-700 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition">
+                <i data-lucide="scissors" class="w-6 h-6 text-gold-400"></i>
+              </div>
+              <p class="font-medium text-white">Ver Servicios</p>
+            </button>
+            <button onclick="window.navigateTo('my-appointments')" class="glass rounded-xl p-6 text-center hover:bg-gold-400/10 transition group">
+              <div class="w-12 h-12 bg-zinc-700 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition">
+                <i data-lucide="calendar-check" class="w-6 h-6 text-gold-400"></i>
+              </div>
+              <p class="font-medium text-white">Mis Citas</p>
+            </button>
+            <button onclick="window.navigateTo('promotions')" class="glass rounded-xl p-6 text-center hover:bg-gold-400/10 transition group">
+              <div class="w-12 h-12 bg-zinc-700 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition">
+                <i data-lucide="percent" class="w-6 h-6 text-gold-400"></i>
+              </div>
+              <p class="font-medium text-white">Ofertas</p>
+            </button>
+          </div>
+          
+          <div class="glass rounded-2xl p-6 mb-8">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="font-display text-xl text-white">PRÓXIMAS CITAS</h2>
+              <button onclick="window.navigateTo('my-appointments')" class="text-gold-400 text-sm hover:underline">Ver todas</button>
+            </div>
+            ${upcomingAppointments.length > 0 ? `
+              <div class="space-y-3">
+                ${upcomingAppointments.map(apt => {
+                  const service = activeServices.find(s => s.id === apt.service_name) || { name: apt.service_name, price: 0 };
+                  const barber = barbers.find(b => b.id === apt.barber_id) || { name: 'Barbero' };
+                  return `
+                    <div class="bg-zinc-700/30 rounded-xl p-4 flex items-center justify-between">
+                      <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 gradient-gold rounded-xl flex items-center justify-center">
+                          <i data-lucide="scissors" class="w-6 h-6 text-zinc-900"></i>
+                        </div>
+                        <div>
+                          <p class="font-medium text-white">${service.name}</p>
+                          <p class="text-sm text-zinc-400">con ${barber.name}</p>
+                        </div>
+                      </div>
+                      <div class="text-right">
+                        <p class="font-medium text-gold-400">${formatDate(apt.date)}</p>
+                        <p class="text-sm text-zinc-400">${apt.time}</p>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : `
+              <div class="text-center py-8">
+                <i data-lucide="calendar-x" class="w-12 h-12 text-zinc-600 mx-auto mb-3"></i>
+                <p class="text-zinc-400 mb-4">No tienes citas programadas</p>
+                <button onclick="window.navigateTo('book')" class="gradient-gold text-zinc-900 px-6 py-2 rounded-lg font-medium hover:opacity-90 transition">
+                  Reservar Ahora
+                </button>
+              </div>
+            `}
+          </div>
+          
+          <div class="glass rounded-2xl p-6">
+            <h2 class="font-display text-xl text-white mb-4">SERVICIOS DESTACADOS</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              ${activeServices.slice(0, 3).map(service => `
+                <div class="bg-zinc-700/30 rounded-xl p-4">
+                  <div class="flex items-start justify-between mb-3">
+                    <div class="w-10 h-10 bg-gold-400/20 rounded-lg flex items-center justify-center">
+                      <i data-lucide="scissors" class="w-5 h-5 text-gold-400"></i>
+                    </div>
+                    <span class="font-display text-2xl text-gold-400">${service.price}$</span>
+                  </div>
+                  <h3 class="font-medium text-white mb-1">${service.name}</h3>
+                  <p class="text-sm text-zinc-400 mb-3">${service.description}</p>
+                  <div class="flex items-center gap-2 text-xs text-zinc-500">
+                    <i data-lucide="clock" class="w-4 h-4"></i>
+                    <span>${service.duration} min</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    function renderBarberDashboard() {
+      // SOLUCIÓN ZONA HORARIA: Forzar fecha local
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      
+      // 1. Filtrar las citas de hoy para el barbero logueado
+      const todayAppointments = window.appData.appointments.filter(a => 
+        a.date === today && 
+        (a.barber_id === window.currentUser.barber_id || a.barber_id === window.currentUser.id) && 
+        a.status !== 'cancelled'
+      );
+      
+      // 2. Contar estados
+      const pendingCount = todayAppointments.filter(a => a.status === 'pending').length;
+      const confirmedCount = todayAppointments.filter(a => a.status === 'confirmed').length;
+      const completedAppointments = todayAppointments.filter(a => a.status === 'completed');
+      const completedCount = completedAppointments.length;
+      
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+      
+      // 3. CALCULAR GANANCIAS DEL DÍA (Solo citas completadas)
+      const todayEarnings = completedAppointments.reduce((sum, apt) => {
+        const service = activeServices.find(s => (s.id || s.__backendId) === apt.service_name);
+        return sum + (service ? Number(service.price) : 0);
+      }, 0);
+      
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8">
+            <h1 class="font-display text-3xl lg:text-4xl text-white mb-2">¡Buen día, ${window.currentUser.name.split(' ')[0]}!</h1>
+            <p class="text-zinc-400">${formatDate(today)} - Tienes ${todayAppointments.length} citas en total hoy</p>
+          </div>
+          
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            
+            <div class="glass rounded-xl p-5 border border-gold-400/30 bg-gold-400/5 relative overflow-hidden group">
+              <div class="absolute -right-4 -top-4 p-4 opacity-10 transition transform group-hover:scale-110">
+                 <i data-lucide="banknote" class="w-20 h-20 text-gold-400"></i>
+              </div>
+              <div class="flex items-center gap-3 mb-3 relative z-10">
+                <div class="w-10 h-10 gradient-gold rounded-lg flex items-center justify-center shadow-lg shadow-gold-500/20">
+                  <i data-lucide="banknote" class="w-5 h-5 text-zinc-900"></i>
+                </div>
+                <span class="text-sm text-gold-400 font-medium">Ingresos Hoy</span>
+              </div>
+              <p class="font-display text-3xl text-gold-400 relative z-10">${todayEarnings}$</p>
+            </div>
+            
+            <div class="glass rounded-xl p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                  <i data-lucide="clock" class="w-5 h-5 text-blue-400"></i>
+                </div>
+                <span class="text-sm text-zinc-400">Pendientes</span>
+              </div>
+              <p class="font-display text-3xl text-white">${pendingCount}</p>
+            </div>
+            <div class="glass rounded-xl p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                  <i data-lucide="check-circle" class="w-5 h-5 text-green-400"></i>
+                </div>
+                <span class="text-sm text-zinc-400">Confirmadas</span>
+              </div>
+              <p class="font-display text-3xl text-white">${confirmedCount}</p>
+            </div>
+            <div class="glass rounded-xl p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                  <i data-lucide="check-check" class="w-5 h-5 text-purple-400"></i>
+                </div>
+                <span class="text-sm text-zinc-400">Completadas</span>
+              </div>
+              <p class="font-display text-3xl text-white">${completedCount}</p>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <button onclick="window.navigateTo('today')" class="glass rounded-xl p-4 text-center hover:bg-gold-400/10 transition">
+              <i data-lucide="calendar-days" class="w-8 h-8 text-gold-400 mx-auto mb-2"></i>
+              <p class="text-sm text-white">Ver Hoy</p>
+            </button>
+            <button onclick="window.navigateTo('walk-in')" class="glass rounded-xl p-4 text-center hover:bg-gold-400/10 transition border border-gold-400/20 shadow-lg shadow-gold-500/5">
+              <i data-lucide="banknote" class="w-8 h-8 text-gold-400 mx-auto mb-2"></i>
+              <p class="text-sm text-white font-medium">Venta Directa</p>
+            </button>
+            <button onclick="window.navigateTo('calendar')" class="glass rounded-xl p-4 text-center hover:bg-gold-400/10 transition">
+              <i data-lucide="calendar" class="w-8 h-8 text-gold-400 mx-auto mb-2"></i>
+              <p class="text-sm text-white">Calendario</p>
+            </button>
+            <button onclick="window.navigateTo('clients')" class="glass rounded-xl p-4 text-center hover:bg-gold-400/10 transition">
+              <i data-lucide="users" class="w-8 h-8 text-gold-400 mx-auto mb-2"></i>
+              <p class="text-sm text-white">Clientes</p>
+            </button>
+          </div>
+          
+          <div class="glass rounded-2xl p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="font-display text-xl text-white">CITAS DE HOY</h2>
+              <button onclick="window.navigateTo('today')" class="text-gold-400 text-sm hover:underline">Ver detalle</button>
+            </div>
+            ${todayAppointments.length > 0 ? `
+              <div class="space-y-3">
+                ${todayAppointments.slice(0, 5).map(apt => {
+                  const service = activeServices.find(s => (s.id || s.__backendId) === apt.service_name) || { name: apt.service_name };
+                  
+                  // IDENTIFICAR SI ES VENTA DIRECTA O CITA
+                  const isWalkIn = apt.client_id === 'walk-in';
+                  const badgeHtml = isWalkIn 
+                    ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30 uppercase tracking-wider ml-2">Directo</span>'
+                    : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase tracking-wider ml-2">Cita</span>';
+
+                  return `
+                    <div class="bg-zinc-700/30 rounded-xl p-4 flex items-center justify-between border border-transparent hover:border-zinc-600 transition">
+                      <div class="flex items-center gap-4">
+                        <div class="text-center min-w-[60px]">
+                          <p class="font-display text-xl text-gold-400">${apt.time}</p>
+                        </div>
+                        <div class="w-px h-10 bg-zinc-600"></div>
+                        <div>
+                          <p class="font-medium text-white flex items-center">
+                            ${apt.notes || 'Cliente'} 
+                            ${badgeHtml}
+                          </p>
+                          <p class="text-sm text-zinc-400">${service.name}</p>
+                        </div>
+                      </div>
+                      <span class="px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(apt.status)}">
+                        ${getStatusLabel(apt.status)}
+                      </span>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : `
+              <div class="text-center py-8">
+                <i data-lucide="coffee" class="w-12 h-12 text-zinc-600 mx-auto mb-3"></i>
+                <p class="text-zinc-400">No hay citas programadas para hoy</p>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+    
+    function renderAdminDashboard() {
+      // SOLUCIÓN ZONA HORARIA
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+      // ... El resto del código de renderAdminDashboard se mantiene igual
+      let appointments = window.appData.appointments;
+      let users = window.appData.users;
+      if (window.currentBranch && window.currentBranch.__backendId !== 'main') {
+        appointments = appointments.filter(a => a.branch_id === window.currentBranch.__backendId);
+        users = users.filter(u => u.branch_id === window.currentBranch.__backendId);
+      }
+      
+      const todayAppointments = appointments.filter(a => a.date === today && a.status !== 'cancelled');
+      const totalRevenue = todayAppointments.reduce((sum, apt) => {
+        const service = activeServices.find(s => s.id === apt.service_name);
+        return sum + (service?.price || 0);
+      }, 0);
+      const totalClients = users.filter(u => u.role === 'client').length;
+      const totalBarbers = window.appData.barbers.length > 0 ? window.appData.barbers.length : defaultBarbersFallback.length;
+      
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+            <div>
+              <h1 class="font-display text-3xl lg:text-4xl text-white mb-2">Panel de Administración</h1>
+              ${window.currentBranch && window.currentBranch.__backendId !== 'main' ? `
+                <p class="text-gold-400">${window.currentBranch.name}</p>
+              ` : ''}
+              <p class="text-zinc-400">Gestiona tu barbería desde aquí</p>
+            </div>
+            ${window.currentUser.role === 'admin' && (!window.currentUser.branch_id || window.currentUser.branch_id === 'main') ? `
+              <div class="flex items-center gap-2 bg-zinc-700 rounded-xl px-4 py-2">
+                <i data-lucide="store" class="w-5 h-5 text-gold-400"></i>
+                <select id="branch-selector" onchange="window.switchBranch()" class="bg-transparent text-white focus:outline-none">
+                  <option value="main">Sucursal Principal</option>
+                  ${window.appData.branches.map(b => `
+                    <option value="${b.__backendId}">${b.branch_name}</option>
+                  `).join('')}
+                </select>
+              </div>
+            ` : ''}
+          </div>
+          
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="glass rounded-xl p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 gradient-gold rounded-lg flex items-center justify-center">
+                  <i data-lucide="banknote" class="w-5 h-5 text-zinc-900"></i>
+                </div>
+                <span class="text-sm text-zinc-400">Ingresos Hoy</span>
+              </div>
+              <p class="font-display text-3xl text-white">${totalRevenue}$</p>
+            </div>
+            <div class="glass rounded-xl p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                  <i data-lucide="calendar-check" class="w-5 h-5 text-blue-400"></i>
+                </div>
+                <span class="text-sm text-zinc-400">Citas Hoy</span>
+              </div>
+              <p class="font-display text-3xl text-white">${todayAppointments.length}</p>
+            </div>
+            <div class="glass rounded-xl p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                  <i data-lucide="users" class="w-5 h-5 text-green-400"></i>
+                </div>
+                <span class="text-sm text-zinc-400">Clientes</span>
+              </div>
+              <p class="font-display text-3xl text-white">${totalClients}</p>
+            </div>
+            <div class="glass rounded-xl p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                  <i data-lucide="scissors" class="w-5 h-5 text-purple-400"></i>
+                </div>
+                <span class="text-sm text-zinc-400">Barberos</span>
+              </div>
+              <p class="font-display text-3xl text-white">${totalBarbers}</p>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <button onclick="window.navigateTo('appointments')" class="glass rounded-xl p-4 text-center hover:bg-gold-400/10 transition">
+              <i data-lucide="calendar-range" class="w-8 h-8 text-gold-400 mx-auto mb-2"></i>
+              <p class="text-sm text-white">Ver Citas</p>
+            </button>
+            <button onclick="window.navigateTo('barbers')" class="glass rounded-xl p-4 text-center hover:bg-gold-400/10 transition">
+              <i data-lucide="users" class="w-8 h-8 text-gold-400 mx-auto mb-2"></i>
+              <p class="text-sm text-white">Barberos</p>
+            </button>
+            <button onclick="window.navigateTo('services-admin')" class="glass rounded-xl p-4 text-center hover:bg-gold-400/10 transition">
+              <i data-lucide="scissors" class="w-8 h-8 text-gold-400 mx-auto mb-2"></i>
+              <p class="text-sm text-white">Servicios</p>
+            </button>
+            <button onclick="window.navigateTo('stats')" class="glass rounded-xl p-4 text-center hover:bg-gold-400/10 transition">
+              <i data-lucide="bar-chart-3" class="w-8 h-8 text-gold-400 mx-auto mb-2"></i>
+              <p class="text-sm text-white">Estadísticas</p>
+            </button>
+          </div>
+          
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="glass rounded-2xl p-6">
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="font-display text-xl text-white">CITAS RECIENTES</h2>
+                <button onclick="window.navigateTo('appointments')" class="text-gold-400 text-sm hover:underline">Ver todas</button>
+              </div>
+              ${appointments.slice(0, 5).length > 0 ? `
+                <div class="space-y-3">
+                  ${appointments.slice(0, 5).map(apt => {
+                    const service = activeServices.find(s => s.id === apt.service_name) || { name: apt.service_name };
+                    return `
+                      <div class="bg-zinc-700/30 rounded-xl p-3 flex items-center justify-between">
+                        <div>
+                          <p class="font-medium text-white text-sm">${service.name}</p>
+                          <p class="text-xs text-zinc-400">${formatDate(apt.date)} - ${apt.time}</p>
+                        </div>
+                        <span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(apt.status)}">
+                          ${getStatusLabel(apt.status)}
+                        </span>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              ` : `
+                <div class="text-center py-6">
+                  <p class="text-zinc-400 text-sm">No hay citas registradas</p>
+                </div>
+              `}
+            </div>
+            
+            <div class="glass rounded-2xl p-6">
+              <h2 class="font-display text-xl text-white mb-4">SERVICIOS POPULARES</h2>
+              <div class="space-y-3">
+                ${activeServices.slice(0, 5).map((service, i) => `
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <span class="w-6 h-6 bg-gold-400/20 rounded-full flex items-center justify-center text-xs text-gold-400 font-medium">${i + 1}</span>
+                      <span class="text-white">${service.name}</span>
+                    </div>
+                    <span class="text-gold-400 font-medium">${service.price}$</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // --- CLIENT VIEWS ---
+    function renderServices() {
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8">
+            <h1 class="font-display text-3xl lg:text-4xl text-white mb-2">NUESTROS SERVICIOS</h1>
+            <p class="text-zinc-400">Descubre todos los servicios que ofrecemos</p>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            ${activeServices.map(service => `
+              <div class="glass rounded-2xl p-6 hover:bg-gold-400/5 transition group">
+                <div class="flex items-start justify-between mb-4">
+                  <div class="w-14 h-14 gradient-gold rounded-xl flex items-center justify-center group-hover:scale-110 transition">
+                    <i data-lucide="scissors" class="w-7 h-7 text-zinc-900"></i>
+                  </div>
+                  <div class="text-right">
+                    <p class="font-display text-3xl text-gold-400">${service.price}$</p>
+                    <p class="text-xs text-zinc-500">${service.duration} min</p>
+                  </div>
+                </div>
+                <h3 class="font-display text-xl text-white mb-2">${service.name}</h3>
+                <p class="text-zinc-400 text-sm mb-4">${service.description}</p>
+                <button onclick="window.startBooking('${service.id}')" class="w-full bg-zinc-700 hover:bg-gold-400 text-white hover:text-zinc-900 py-2 rounded-lg font-medium transition">
+                  Reservar
+                </button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+    
+    window.startBooking = (serviceId) => {
+      window.navigateTo('book');
+      setTimeout(() => {
+        const radio = document.querySelector(`input[name="booking-service"][value="${serviceId}"]`);
+        if (radio) {
+          radio.checked = true;
+          window.updateBookingSummary();
+        }
+      }, 100);
+    }
+    
+    function renderBooking() {
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+      
+      // 1. Detectar sucursal por defecto (la que eligió el cliente al registrarse, o la primera que exista)
+      const defaultBranchId = window.currentUser?.branch_id || (window.appData.branches.length > 0 ? window.appData.branches[0].id || window.appData.branches[0].__backendId : 'main');
+      
+      // 2. Filtrar a los barberos para mostrar SOLO los de la sucursal seleccionada por defecto
+      const initialBarbers = window.appData.barbers.filter(b => b.branch_id === defaultBranchId || (!b.branch_id && defaultBranchId === 'main'));
+
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8">
+            <h1 class="font-display text-3xl lg:text-4xl text-white mb-2">RESERVAR CITA</h1>
+            <p class="text-zinc-400">Selecciona tu sucursal, servicio, barbero, fecha y hora</p>
+          </div>
+          
+          <div class="max-w-3xl mx-auto">
+            <div class="glass rounded-2xl p-6 lg:p-8">
+              
+              <div class="mb-8">
+                <h3 class="font-display text-lg text-gold-400 mb-4 flex items-center gap-2">
+                  <span class="w-6 h-6 bg-gold-400 rounded-full flex items-center justify-center text-zinc-900 text-sm font-bold">1</span>
+                  ELIGE LA SUCURSAL
+                </h3>
+                <div class="relative">
+                  <i data-lucide="store" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400"></i>
+                  <select id="booking-branch" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 pl-12 pr-4 text-white focus:border-gold-400 focus:outline-none appearance-none transition cursor-pointer" onchange="window.filterBarbersByBranch()">
+                    ${window.appData.branches.length > 0 
+                      ? window.appData.branches.map(b => {
+                          const bId = b.id || b.__backendId;
+                          return `<option value="${bId}" ${defaultBranchId === bId ? 'selected' : ''}>${b.branch_name} - ${b.branch_location}</option>`;
+                        }).join('')
+                      : `<option value="main">Sucursal Principal</option>`
+                    }
+                  </select>
+                </div>
+              </div>
+
+              <div class="mb-8">
+                <h3 class="font-display text-lg text-gold-400 mb-4 flex items-center gap-2">
+                  <span class="w-6 h-6 bg-gold-400 rounded-full flex items-center justify-center text-zinc-900 text-sm font-bold">2</span>
+                  SELECCIONA UN SERVICIO
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  ${activeServices.map(service => `
+                    <label class="cursor-pointer">
+                      <input type="radio" name="booking-service" value="${service.id || service.__backendId}" class="peer hidden" onchange="window.updateBookingSummary()">
+                      <div class="bg-zinc-700/50 peer-checked:bg-gold-400/20 peer-checked:border-gold-400 border border-transparent rounded-xl p-3 transition">
+                        <div class="flex items-center justify-between gap-3">
+                          <div class="flex items-center gap-3">
+                            ${service.image_url ? `
+                              <img src="${service.image_url}" class="w-12 h-12 rounded-lg object-cover bg-zinc-800 flex-shrink-0 border border-zinc-600">
+                            ` : `
+                              <div class="w-12 h-12 bg-zinc-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <i data-lucide="scissors" class="w-6 h-6 text-zinc-400"></i>
+                              </div>
+                            `}
+                            <div>
+                              <p class="font-medium text-white leading-tight">${service.name}</p>
+                              <p class="text-xs text-zinc-400 mt-1"><i data-lucide="clock" class="w-3 h-3 inline"></i> ${service.duration} min</p>
+                            </div>
+                          </div>
+                          <span class="font-display text-xl text-gold-400">${service.price}$</span>
+                        </div>
+                      </div>
+                    </label>
+                  `).join('')}
+                </div>
+              </div>
+              
+              <div class="mb-8">
+                <h3 class="font-display text-lg text-gold-400 mb-4 flex items-center gap-2">
+                  <span class="w-6 h-6 bg-gold-400 rounded-full flex items-center justify-center text-zinc-900 text-sm font-bold">3</span>
+                  ELIGE TU BARBERO
+                </h3>
+                <div id="barbers-grid" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  ${initialBarbers.length > 0 ? initialBarbers.map(barber => `
+                    <label class="cursor-pointer">
+                      <input type="radio" name="booking-barber" value="${barber.id || barber.__backendId}" class="peer hidden" onchange="window.updateBookingSummary()">
+                      <div class="bg-zinc-700/50 peer-checked:bg-gold-400/20 peer-checked:border-gold-400 border border-transparent rounded-xl p-4 text-center transition">
+                        <div class="w-16 h-16 bg-zinc-600 rounded-full mx-auto mb-3 flex items-center justify-center border border-zinc-500/30">
+                          <i data-lucide="user" class="w-8 h-8 text-zinc-400"></i>
+                        </div>
+                        <p class="font-medium text-white">${barber.name}</p>
+                      </div>
+                    </label>
+                  `).join('') : '<p class="text-zinc-400 col-span-3 text-sm py-4 text-center bg-zinc-800/50 rounded-xl">No hay barberos disponibles en esta sucursal por ahora.</p>'}
+                </div>
+              </div>
+              
+              <div class="mb-8">
+                <h3 class="font-display text-lg text-gold-400 mb-4 flex items-center gap-2">
+                  <span class="w-6 h-6 bg-gold-400 rounded-full flex items-center justify-center text-zinc-900 text-sm font-bold">4</span>
+                  FECHA Y HORA
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm text-zinc-400 mb-2">Fecha</label>
+                    <input type="date" id="booking-date" min="${new Date().toISOString().split('T')[0]}" class="w-full bg-zinc-700 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none cursor-pointer" onchange="window.updateBookingSummary()">
+                  </div>
+                  <div>
+                    <label class="block text-sm text-zinc-400 mb-2">Hora</label>
+                    <select id="booking-time" class="w-full bg-zinc-700 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none cursor-pointer" onchange="window.updateBookingSummary()">
+                      <option value="">Selecciona hora</option>
+                      ${generateTimeSlots().map(time => `<option value="${time}">${time}</option>`).join('')}
+                    </select>
+                  </div>
+                </div>
+              </div>
+              
+              <div id="booking-summary" class="bg-zinc-700/30 rounded-xl p-5 mb-6 hidden border border-gold-400/30">
+                <h4 class="font-display text-xl text-white mb-4 border-b border-zinc-600 pb-2">RESUMEN DE TU CITA</h4>
+                <div id="summary-content"></div>
+              </div>
+              
+              <button onclick="window.confirmBooking()" id="booking-submit" class="w-full gradient-gold text-zinc-900 font-bold py-4 rounded-xl hover:opacity-90 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg" disabled>
+                <i data-lucide="calendar-check" class="w-5 h-5"></i>
+                <span>Confirmar Reserva</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    function generateTimeSlots() {
+      const slots = [];
+      for (let h = 9; h <= 19; h++) {
+        slots.push(`${h.toString().padStart(2, '0')}:00`);
+        if (h < 19) slots.push(`${h.toString().padStart(2, '0')}:30`);
+      }
+      return slots;
+    }
+
+    // NUEVA FUNCIÓN: Filtra los barberos en tiempo real cuando el usuario cambia la sucursal
+    window.filterBarbersByBranch = () => {
+      const branchId = document.getElementById('booking-branch').value;
+      const barbersGrid = document.getElementById('barbers-grid');
+      
+      const filteredBarbers = window.appData.barbers.filter(b => b.branch_id === branchId || (!b.branch_id && branchId === 'main'));
+      
+      if (filteredBarbers.length === 0) {
+         barbersGrid.innerHTML = '<p class="text-zinc-400 col-span-3 text-sm py-4 text-center bg-zinc-800/50 rounded-xl">No hay barberos disponibles en esta sucursal por ahora.</p>';
+      } else {
+         barbersGrid.innerHTML = filteredBarbers.map(barber => `
+            <label class="cursor-pointer fade-in">
+              <input type="radio" name="booking-barber" value="${barber.id || barber.__backendId}" class="peer hidden" onchange="window.updateBookingSummary()">
+              <div class="bg-zinc-700/50 peer-checked:bg-gold-400/20 peer-checked:border-gold-400 border border-transparent rounded-xl p-4 text-center transition">
+                <div class="w-16 h-16 bg-zinc-600 rounded-full mx-auto mb-3 flex items-center justify-center border border-zinc-500/30">
+                  <i data-lucide="user" class="w-8 h-8 text-zinc-400"></i>
+                </div>
+                <p class="font-medium text-white">${barber.name}</p>
+              </div>
+            </label>
+         `).join('');
+      }
+      lucide.createIcons();
+      window.updateBookingSummary(); // Reevalúa el resumen porque el barbero anterior se deseleccionó
+    }
+    
+    window.updateBookingSummary = () => {
+      const branchId = document.getElementById('booking-branch')?.value;
+      const serviceId = document.querySelector('input[name="booking-service"]:checked')?.value;
+      const barberId = document.querySelector('input[name="booking-barber"]:checked')?.value;
+      const date = document.getElementById('booking-date')?.value;
+      const time = document.getElementById('booking-time')?.value;
+      
+      const summary = document.getElementById('booking-summary');
+      const content = document.getElementById('summary-content');
+      const submitBtn = document.getElementById('booking-submit');
+      
+      if (serviceId && barberId && date && time && branchId) {
+        const branchData = window.appData.branches.find(b => (b.id || b.__backendId) === branchId) || { branch_name: 'Sucursal Principal' };
+        const serviceData = window.appData.services.find(s => (s.id || s.__backendId) === serviceId);
+        const barberData = window.appData.barbers.find(b => (b.id || b.__backendId) === barberId);
+        
+        content.innerHTML = `
+          <div class="space-y-3">
+            <div class="flex justify-between"><span class="text-zinc-400"><i data-lucide="store" class="w-4 h-4 inline mr-1"></i> Sucursal:</span><span class="text-white font-medium">${branchData.branch_name}</span></div>
+            <div class="flex justify-between"><span class="text-zinc-400"><i data-lucide="scissors" class="w-4 h-4 inline mr-1"></i> Servicio:</span><span class="text-white font-medium">${serviceData.name}</span></div>
+            <div class="flex justify-between"><span class="text-zinc-400"><i data-lucide="user" class="w-4 h-4 inline mr-1"></i> Barbero:</span><span class="text-white font-medium">${barberData.name}</span></div>
+            <div class="flex justify-between"><span class="text-zinc-400"><i data-lucide="calendar" class="w-4 h-4 inline mr-1"></i> Fecha:</span><span class="text-white font-medium">${formatDate(date)}</span></div>
+            <div class="flex justify-between"><span class="text-zinc-400"><i data-lucide="clock" class="w-4 h-4 inline mr-1"></i> Hora:</span><span class="text-white font-medium">${time}</span></div>
+            <div class="border-t border-zinc-600/50 pt-3 mt-3 flex justify-between items-center">
+              <span class="text-gold-400 font-medium">Total:</span><span class="text-gold-400 font-display text-3xl">${serviceData.price}$</span>
+            </div>
+          </div>
+        `;
+        summary.classList.remove('hidden');
+        submitBtn.disabled = false;
+      } else {
+        summary.classList.add('hidden');
+        submitBtn.disabled = true;
+      }
+      lucide.createIcons();
+    }
+    
+    window.confirmBooking = async () => {
+      const branchId = document.getElementById('booking-branch')?.value;
+      const serviceId = document.querySelector('input[name="booking-service"]:checked')?.value;
+      const barberId = document.querySelector('input[name="booking-barber"]:checked')?.value;
+      const date = document.getElementById('booking-date')?.value;
+      const time = document.getElementById('booking-time')?.value;
+      
+      if (!serviceId || !barberId || !date || !time) return showToast('Completa todos los campos', 'error');
+      
+      // Chequear conflicto de horarios
+      const conflict = window.appData.appointments.find(a => 
+        a.barber_id === barberId && a.date === date && a.time === time && a.status !== 'cancelled'
+      );
+      if (conflict) return showToast('Este horario ya está ocupado', 'error');
+      
+      try {
+        const submitBtn = document.getElementById('booking-submit');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = 'Procesando...';
+
+        await addDoc(collection(db, "appointments"), {
+          branch_id: branchId || 'main', // Ahora la cita guarda en qué sucursal se hizo
+          service_name: serviceId, 
+          barber_id: barberId,
+          client_id: window.currentUser.id,
+          date,
+          time,
+          status: 'pending',
+          notes: window.currentUser.name,
+          created_at: new Date().toISOString()
+        });
+        showToast('¡Cita reservada exitosamente!', 'success');
+        window.navigateTo('my-appointments');
+      } catch (e) {
+        showToast('Error al reservar la cita', 'error');
+        document.getElementById('booking-submit').disabled = false;
+      }
+    }
+    
+    window.updateBookingSummary = () => {
+      const serviceId = document.querySelector('input[name="booking-service"]:checked')?.value;
+      const barberId = document.querySelector('input[name="booking-barber"]:checked')?.value;
+      const date = document.getElementById('booking-date')?.value;
+      const time = document.getElementById('booking-time')?.value;
+      
+      const summary = document.getElementById('booking-summary');
+      const content = document.getElementById('summary-content');
+      const submitBtn = document.getElementById('booking-submit');
+      
+      if (serviceId && barberId && date && time) {
+        const activeServices = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+        const barbers = window.appData.barbers.length > 0 ? window.appData.barbers : defaultBarbersFallback;
+        
+        const serviceData = activeServices.find(s => s.id === serviceId);
+        const barberData = barbers.find(b => b.id === barberId);
+        
+        content.innerHTML = `
+          <div class="space-y-2">
+            <div class="flex justify-between"><span class="text-zinc-400">Servicio:</span><span class="text-white">${serviceData.name}</span></div>
+            <div class="flex justify-between"><span class="text-zinc-400">Barbero:</span><span class="text-white">${barberData.name}</span></div>
+            <div class="flex justify-between"><span class="text-zinc-400">Fecha:</span><span class="text-white">${formatDate(date)}</span></div>
+            <div class="flex justify-between"><span class="text-zinc-400">Hora:</span><span class="text-white">${time}</span></div>
+            <div class="border-t border-zinc-600 pt-2 mt-2 flex justify-between">
+              <span class="text-gold-400 font-medium">Total:</span><span class="text-gold-400 font-display text-xl">${serviceData.price}$</span>
+            </div>
+          </div>
+        `;
+        summary.classList.remove('hidden');
+        submitBtn.disabled = false;
+      } else {
+        summary.classList.add('hidden');
+        submitBtn.disabled = true;
+      }
+      lucide.createIcons();
+    }
+    
+    window.confirmBooking = async () => {
+      const branchId = document.getElementById('booking-branch')?.value;
+      const serviceId = document.querySelector('input[name="booking-service"]:checked')?.value;
+      const barberId = document.querySelector('input[name="booking-barber"]:checked')?.value;
+      const date = document.getElementById('booking-date')?.value;
+      const time = document.getElementById('booking-time')?.value;
+      
+      if (!serviceId || !barberId || !date || !time) return showToast('Completa todos los campos', 'error');
+      
+      // 1. Chequear si la hora choca con OTRA CITA ya agendada
+      const conflict = window.appData.appointments.find(a => 
+        a.barber_id === barberId && a.date === date && a.time === time && a.status !== 'cancelled'
+      );
+      if (conflict) return showToast('Este horario ya está ocupado por otro cliente', 'error');
+
+      // 2. NUEVO: Chequear si el barbero BLOQUEÓ ese horario (ej. Hora de comida)
+      const isBlocked = window.appData.blockedSlots.find(b => {
+         if (b.barber_id !== barberId || b.date !== date) return false;
+         
+         // La base de datos guarda "14:00-15:00". Lo dividimos.
+         const [blockStart, blockEnd] = b.time.split('-');
+         if (!blockStart || !blockEnd) return false;
+
+         // Comparamos si la hora elegida está dentro del rango bloqueado
+         // Ej: time = "14:30". Es >= 14:00 y < 15:00. ¡Está bloqueado!
+         return time >= blockStart && time < blockEnd;
+      });
+
+      if (isBlocked) return showToast('El barbero está en descanso o no disponible a esta hora', 'error');
+      
+      try {
+        const submitBtn = document.getElementById('booking-submit');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = 'Procesando...';
+
+        await addDoc(collection(db, "appointments"), {
+          branch_id: branchId || 'main',
+          service_name: serviceId, 
+          barber_id: barberId,
+          client_id: window.currentUser.id,
+          date,
+          time,
+          status: 'pending',
+          notes: window.currentUser.name,
+          created_at: new Date().toISOString()
+        });
+        showToast('¡Cita reservada exitosamente!', 'success');
+        window.navigateTo('my-appointments');
+      } catch (e) {
+        showToast('Error al reservar la cita', 'error');
+        document.getElementById('booking-submit').disabled = false;
+        document.getElementById('booking-submit').innerHTML = '<i data-lucide="calendar-check" class="w-5 h-5"></i> <span>Confirmar Reserva</span>';
+        lucide.createIcons();
+      }
+    }
+    
+    function renderMyAppointments() {
+      const myAppointments = window.appData.appointments
+        .filter(a => a.client_id === window.currentUser.id)
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+      const upcoming = myAppointments.filter(a => new Date(a.date) >= new Date() && a.status !== 'cancelled');
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+      const barbers = window.appData.barbers.length > 0 ? window.appData.barbers : defaultBarbersFallback;
+      
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8">
+            <h1 class="font-display text-3xl lg:text-4xl text-white mb-2">MIS CITAS</h1>
+            <p class="text-zinc-400">Gestiona tus citas programadas</p>
+          </div>
+          <div class="glass rounded-2xl p-6">
+            ${upcoming.length > 0 ? `
+              <div class="space-y-4">
+                ${upcoming.map(apt => {
+                  const service = activeServices.find(s => s.id === apt.service_name) || { name: apt.service_name, price: 0 };
+                  const barber = barbers.find(b => b.id === apt.barber_id) || { name: 'Barbero' };
+                  return `
+                    <div class="bg-zinc-700/30 rounded-xl p-5">
+                      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div class="flex items-start gap-4">
+                          <div class="w-14 h-14 gradient-gold rounded-xl flex items-center justify-center flex-shrink-0">
+                            <i data-lucide="scissors" class="w-7 h-7 text-zinc-900"></i>
+                          </div>
+                          <div>
+                            <h3 class="font-display text-xl text-white">${service.name}</h3>
+                            <p class="text-zinc-400">con ${barber.name}</p>
+                            <div class="flex flex-wrap gap-3 mt-2 text-sm">
+                              <span class="flex items-center gap-1 text-zinc-400"><i data-lucide="calendar" class="w-4 h-4"></i>${formatDate(apt.date)}</span>
+                              <span class="flex items-center gap-1 text-zinc-400"><i data-lucide="clock" class="w-4 h-4"></i>${apt.time}</span>
+                              <span class="flex items-center gap-1 text-gold-400"><i data-lucide="banknote" class="w-4 h-4"></i>${service.price}$</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <span class="px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(apt.status)}">${getStatusLabel(apt.status)}</span>
+                          ${apt.status !== 'cancelled' && apt.status !== 'completed' ? `
+                            <button onclick="window.showCancelModal('${apt.__backendId}')" class="p-2 text-zinc-400 hover:text-red-400 transition" title="Cancelar">
+                              <i data-lucide="x-circle" class="w-5 h-5"></i>
+                            </button>
+                          ` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : `
+              <div class="text-center py-12">
+                <i data-lucide="calendar-x" class="w-16 h-16 text-zinc-600 mx-auto mb-4"></i>
+                <h3 class="font-display text-xl text-white mb-2">No tienes citas programadas</h3>
+                <button onclick="window.navigateTo('book')" class="gradient-gold text-zinc-900 px-8 py-3 rounded-xl font-medium mt-4">Reservar Cita</button>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderHistory() {
+      const myAppointments = window.appData.appointments.filter(a => a.client_id === window.currentUser.id).sort((a, b) => new Date(b.date) - new Date(a.date));
+      const past = myAppointments.filter(a => new Date(a.date) < new Date() || a.status === 'completed' || a.status === 'cancelled');
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+      
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8"><h1 class="font-display text-3xl text-white mb-2">HISTORIAL</h1><p class="text-zinc-400">Tu historial de citas</p></div>
+          <div class="glass rounded-2xl p-6">
+            ${past.length > 0 ? `
+              <div class="space-y-3">
+                ${past.map(apt => {
+                  const service = activeServices.find(s => s.id === apt.service_name) || { name: apt.service_name };
+                  return `
+                    <div class="bg-zinc-700/30 rounded-xl p-4 flex items-center justify-between ${apt.status === 'cancelled' ? 'opacity-50' : ''}">
+                      <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 ${apt.status === 'completed' ? 'bg-green-500/20' : 'bg-zinc-600'} rounded-lg flex items-center justify-center">
+                          <i data-lucide="${apt.status === 'completed' ? 'check' : 'x'}" class="w-5 h-5 ${apt.status === 'completed' ? 'text-green-400' : 'text-zinc-400'}"></i>
+                        </div>
+                        <div>
+                          <p class="font-medium text-white">${service.name}</p>
+                          <p class="text-sm text-zinc-400">${formatDate(apt.date)} - ${apt.time}</p>
+                        </div>
+                      </div>
+                      <div class="text-right">
+                        <span class="px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(apt.status)}">${getStatusLabel(apt.status)}</span>
+                        ${apt.status === 'completed' && !apt.rating ? `
+                          <button onclick="window.showRatingModal('${apt.__backendId}')" class="block mt-2 text-xs text-gold-400 hover:underline">Calificar</button>
+                        ` : apt.rating ? `
+                          <div class="flex gap-1 mt-2">${Array(apt.rating).fill('<i data-lucide="star" class="w-3 h-3 text-gold-400 fill-current"></i>').join('')}</div>
+                        ` : ''}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : `<div class="text-center py-12"><p class="text-zinc-400">Sin historial</p></div>`}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPromotions() {
+      const activePromos = window.appData.promotions.length > 0 ? window.appData.promotions : [
+        { code: 'NUEVO20', discount: 20, description: '20% descuento nuevos clientes', validUntil: '2026-12-31', active: true }
+      ];
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8"><h1 class="font-display text-3xl text-white mb-2">PROMOCIONES</h1></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            ${activePromos.filter(p => p.active !== false).map(promo => `
+              <div class="glass rounded-2xl overflow-hidden">
+                <div class="gradient-gold p-6 text-center"><p class="font-display text-5xl text-zinc-900">${promo.discount}%</p></div>
+                <div class="p-6">
+                  <p class="text-white mb-2">${promo.description}</p>
+                  <div class="flex justify-between mt-4"><code class="text-gold-400 font-mono font-bold">${promo.code}</code><p class="text-xs text-zinc-500">Hasta ${formatDate(promo.validUntil)}</p></div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // --- BARBER VIEWS ---
+    function renderTodayAppointments() {
+      // SOLUCIÓN ZONA HORARIA
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      
+      const todayAppts = window.appData.appointments
+        .filter(a => a.date === today && (a.barber_id === window.currentUser.barber_id || a.barber_id === window.currentUser.id) && a.status !== 'cancelled')
+        .sort((a, b) => a.time.localeCompare(b.time));
+        
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+      
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8"><h1 class="font-display text-3xl text-white">CITAS DE HOY</h1></div>
+          <div class="glass rounded-2xl p-6">
+            ${todayAppts.length > 0 ? `
+              <div class="space-y-4">
+                ${todayAppts.map(apt => {
+                  const service = activeServices.find(s => (s.id || s.__backendId) === apt.service_name) || { name: apt.service_name, duration: 30 };
+                  
+                  // IDENTIFICAR SI ES VENTA DIRECTA O CITA
+                  const isWalkIn = apt.client_id === 'walk-in';
+                  const badgeHtml = isWalkIn 
+                    ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30 uppercase tracking-wider ml-2">Venta Directa</span>'
+                    : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase tracking-wider ml-2">Cita</span>';
+
+                  return `
+                    <div class="bg-zinc-700/30 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 border border-transparent hover:border-zinc-600 transition">
+                      <div class="flex items-center gap-4">
+                        <div class="text-center min-w-[60px]">
+                           <p class="font-display text-2xl text-gold-400">${apt.time}</p>
+                        </div>
+                        <div class="w-px h-12 bg-zinc-600 hidden md:block"></div>
+                        <div>
+                           <p class="font-medium text-white flex items-center text-lg">
+                             ${apt.notes || 'Cliente'} 
+                             ${badgeHtml}
+                           </p>
+                           <p class="text-zinc-400">${service.name}</p>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <span class="px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(apt.status)}">${getStatusLabel(apt.status)}</span>
+                        
+                        ${!isWalkIn && apt.status !== 'completed' ? `
+                          <button onclick="window.sendWhatsAppReminder('${apt.client_id}', '${apt.time}', '${apt.barber_id}', ${isWalkIn})" class="p-2 text-green-400 bg-green-400/10 hover:bg-green-400/20 rounded-lg transition" title="Enviar Recordatorio por WhatsApp">
+                            <i data-lucide="message-circle" class="w-5 h-5"></i>
+                          </button>
+                        ` : ''}
+
+                        ${apt.status === 'pending' ? `<button onclick="window.updateAppointmentStatus('${apt.__backendId}', 'confirmed')" class="p-2 text-blue-400 bg-blue-400/10 hover:bg-blue-400/20 rounded-lg transition" title="Confirmar"><i data-lucide="check" class="w-5 h-5"></i></button>` : ''}
+                        ${apt.status === 'confirmed' ? `<button onclick="window.updateAppointmentStatus('${apt.__backendId}', 'completed')" class="p-2 text-gold-400 bg-gold-400/10 hover:bg-gold-400/20 rounded-lg transition" title="Completar"><i data-lucide="check-check" class="w-5 h-5"></i></button>` : ''}
+                        ${apt.status !== 'completed' && apt.status !== 'cancelled' ? `<button onclick="window.updateAppointmentStatus('${apt.__backendId}', 'cancelled')" class="p-2 text-red-400 bg-red-400/10 hover:bg-red-400/20 rounded-lg transition" title="Cancelar"><i data-lucide="x" class="w-5 h-5"></i></button>` : ''}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : `<div class="text-center py-12"><p class="text-zinc-400">Día libre, no hay citas.</p></div>`}
+          </div>
+        </div>
+      `;
+    }
+
+   // --- CALENDARIO ---
+   // --- CALENDARIO ---
+   function renderCalendar() {
+      const dates = getCalendarDates(window.selectedDate);
+      const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+      const currentMonthName = monthNames[window.selectedDate.getMonth()];
+      const currentYear = window.selectedDate.getFullYear();
+
+      // Filtrar citas según el rol para mostrarlas en el calendario
+      let validAppointments = window.appData.appointments.filter(a => a.status !== 'cancelled');
+      
+      if (window.currentUser.role === 'barber') {
+        // SOLUCIÓN: Filtrar por barber_id del perfil
+        validAppointments = validAppointments.filter(a => a.barber_id === window.currentUser.barber_id || a.barber_id === window.currentUser.id);
+      } else if (window.currentUser.role === 'admin' && window.currentBranch && window.currentBranch.__backendId !== 'main') {
+        validAppointments = validAppointments.filter(a => a.branch_id === window.currentBranch.__backendId);
+      }
+
+      // ... (El resto de la función renderCalendar sigue igual) ...
+      return `
+        <div class="p-6 lg:p-8 fade-in flex flex-col h-full">
+          <div class="flex items-center justify-between mb-6">
+            <div>
+              <h1 class="font-display text-3xl lg:text-4xl text-white uppercase tracking-wide">CALENDARIO</h1>
+              <p class="text-zinc-400 text-lg">${currentMonthName} ${currentYear}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="window.changeMonth(-1)" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition">
+                <i data-lucide="chevron-left" class="w-5 h-5"></i>
+              </button>
+              <button onclick="window.goToToday()" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium rounded-lg transition">
+                Hoy
+              </button>
+              <button onclick="window.changeMonth(1)" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition">
+                <i data-lucide="chevron-right" class="w-5 h-5"></i>
+              </button>
+            </div>
+          </div>
+          
+          <div class="border border-zinc-800 rounded-2xl p-4 bg-zinc-900/40 flex-1 overflow-x-auto">
+            <div class="min-w-[700px] h-full flex flex-col">
+              <div class="grid grid-cols-7 gap-2 mb-2">
+                ${['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(day => `
+                  <div class="text-center text-sm text-zinc-400 font-medium py-2">${day}</div>
+                `).join('')}
+              </div>
+              
+              <div class="grid grid-cols-7 gap-2 flex-1 auto-rows-fr">
+                ${dates.map(date => {
+                  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                  
+                  // Calcular fecha actual de forma segura considerando zona horaria
+                  const todayObj = new Date();
+                  const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
+                  
+                  const isToday = dateStr === todayStr;
+                  const isCurrentMonth = date.getMonth() === window.selectedDate.getMonth();
+                  const dayAppointments = validAppointments.filter(a => a.date === dateStr);
+                  
+                  // Clases CSS basadas en la imagen
+                  const cellBg = 'bg-[#1c1c1e] hover:bg-[#2a2a2c]';
+                  const borderClass = isToday ? 'border border-gold-400' : 'border border-transparent';
+                  const textClass = isToday ? 'text-gold-400 font-bold' : (isCurrentMonth ? 'text-white font-medium' : 'text-zinc-600');
+                  
+                  return `
+                    <div onclick="window.selectDate('${dateStr}')" class="${cellBg} ${borderClass} rounded-xl p-3 flex flex-col cursor-pointer transition relative min-h-[100px]">
+                      <span class="${textClass} text-sm">${date.getDate()}</span>
+                      
+                      <div class="mt-auto pt-2 space-y-1">
+                        ${dayAppointments.length > 0 ? `
+                          <div class="text-[10px] md:text-xs bg-gold-400/10 text-gold-400 px-2 py-1 rounded-md truncate font-medium border border-gold-400/20">
+                            ${dayAppointments.length} cita${dayAppointments.length > 1 ? 's' : ''}
+                          </div>
+                        ` : ''}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    // Funciones de Apoyo para el Calendario
+    function getCalendarDates(date) {
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const firstDayOfMonth = new Date(year, month, 1);
+      
+      // Ajustar para que la semana empiece en Lunes (0 = Lunes, 6 = Domingo)
+      let firstDayOfWeek = firstDayOfMonth.getDay();
+      firstDayOfWeek = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+      
+      const startDate = new Date(year, month, 1 - firstDayOfWeek);
+      const dates = [];
+      
+      // Generar 42 días (6 semanas exactas)
+      for (let i = 0; i < 42; i++) {
+        dates.push(new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i));
+      }
+      return dates;
+    }
+    
+    window.changeMonth = (delta) => {
+      window.selectedDate = new Date(window.selectedDate.getFullYear(), window.selectedDate.getMonth() + delta, 1);
+      renderCurrentView();
+    };
+    
+    window.goToToday = () => {
+      window.selectedDate = new Date();
+      renderCurrentView();
+    };
+    
+   
+    window.selectDate = (dateStr) => {
+      // Filtrar citas del día seleccionado
+      let dayAppointments = window.appData.appointments.filter(a => a.status !== 'cancelled' && a.date === dateStr);
+      
+      if (window.currentUser.role === 'barber') {
+        // SOLUCIÓN: Filtrar por barber_id del perfil
+        dayAppointments = dayAppointments.filter(a => a.barber_id === window.currentUser.barber_id || a.barber_id === window.currentUser.id);
+      } else if (window.currentUser.role === 'admin' && window.currentBranch && window.currentBranch.__backendId !== 'main') {
+        dayAppointments = dayAppointments.filter(a => a.branch_id === window.currentBranch.__backendId);
+      }
+      
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+      const barbers = window.appData.barbers.length > 0 ? window.appData.barbers : defaultBarbersFallback;
+      
+      // Mostrar Modal con los detalles del día
+      // ... (El resto del código del window.showModal de esta función sigue igual) ...
+      // Mostrar Modal con los detalles del día
+      window.showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="font-display text-2xl text-white uppercase tracking-wide">
+              Citas del ${formatDate(dateStr)}
+            </h2>
+            <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+          
+          ${dayAppointments.length > 0 ? `
+            <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+              ${dayAppointments.map(apt => {
+                const service = activeServices.find(s => s.id === apt.service_name) || { name: apt.service_name };
+                const barber = barbers.find(b => b.id === apt.barber_id) || { name: 'Barbero' };
+                return `
+                  <div class="bg-zinc-700/30 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border border-zinc-700/50">
+                    <div class="flex items-center gap-4">
+                      <div class="text-center min-w-[60px]">
+                        <p class="font-display text-xl text-gold-400">${apt.time}</p>
+                      </div>
+                      <div class="w-px h-10 bg-zinc-600 hidden md:block"></div>
+                      <div>
+                        <p class="font-medium text-white text-lg">${apt.notes || 'Cliente'}</p>
+                        <p class="text-sm text-zinc-400">${service.name} • ${barber.name}</p>
+                      </div>
+                    </div>
+                    <span class="px-3 py-1 rounded-full text-xs font-medium self-start md:self-auto ${getStatusColor(apt.status)}">
+                      ${getStatusLabel(apt.status)}
+                    </span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : `
+            <div class="text-center py-12 bg-zinc-800/30 rounded-xl border border-zinc-700/50">
+              <i data-lucide="calendar-x" class="w-16 h-16 text-zinc-600 mx-auto mb-4"></i>
+              <p class="text-zinc-400 text-lg">No hay citas programadas para este día</p>
+            </div>
+          `}
+        </div>
+      `);
+    };
+
+    function renderSchedule() {
+      // Obtenemos los bloqueos actuales del barbero logueado
+      const barberId = window.currentUser.barber_id || window.currentUser.id;
+      const myBlocks = window.appData.blockedSlots.filter(b => b.barber_id === barberId);
+      
+      // Ordenar bloqueos para que los más recientes salgan primero
+      myBlocks.sort((a,b) => b.date.localeCompare(a.date));
+
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8">
+             <h1 class="font-display text-3xl text-white uppercase tracking-wide">MI HORARIO</h1>
+             <p class="text-zinc-400">Gestiona tus tiempos de descanso y bloqueos de agenda</p>
+          </div>
+          
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div class="glass rounded-2xl p-6 h-fit border border-zinc-700/50">
+                <h2 class="font-display text-xl text-white mb-4">BLOQUEAR ESPACIO</h2>
+                
+                <div class="mb-6 p-5 bg-gold-400/5 border border-gold-400/20 rounded-xl">
+                    <p class="text-sm text-gold-400 mb-3 font-medium flex items-center gap-2">
+                        <i data-lucide="coffee" class="w-4 h-4"></i> Bloquear Hora de Comida (Para hoy)
+                    </p>
+                    <div class="flex items-center gap-3 mb-4">
+                        <select id="lunch-start" class="w-full bg-zinc-800 border border-zinc-700 p-2.5 rounded-lg text-white focus:border-gold-400 outline-none">
+                            ${generateTimeSlots().map(t=>`<option value="${t}" ${t==='14:00'?'selected':''}>${t}</option>`).join('')}
+                        </select>
+                        <span class="text-zinc-500 font-medium">a</span>
+                        <select id="lunch-end" class="w-full bg-zinc-800 border border-zinc-700 p-2.5 rounded-lg text-white focus:border-gold-400 outline-none">
+                            ${generateTimeSlots().map(t=>`<option value="${t}" ${t==='15:00'?'selected':''}>${t}</option>`).join('')}
+                        </select>
+                    </div>
+                    <button onclick="window.blockLunchTime()" class="w-full bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 border border-zinc-700 hover:border-gold-400 shadow-lg">
+                        <i data-lucide="lock" class="w-5 h-5"></i> Bloquear para Hoy
+                    </button>
+                </div>
+
+                <div class="space-y-4 border-t border-zinc-700/50 pt-6">
+                  <p class="text-sm text-zinc-400 font-medium mb-2">Bloqueo Personalizado (Cualquier día)</p>
+                  <input type="date" id="block-date" class="w-full bg-zinc-700/50 border border-zinc-600 focus:border-gold-400 p-3 rounded-xl text-white focus:outline-none [color-scheme:dark]">
+                  <div class="grid grid-cols-2 gap-4">
+                    <select id="block-start" class="w-full bg-zinc-700/50 border border-zinc-600 focus:border-gold-400 p-3 rounded-xl text-white appearance-none">${generateTimeSlots().map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+                    <select id="block-end" class="w-full bg-zinc-700/50 border border-zinc-600 focus:border-gold-400 p-3 rounded-xl text-white appearance-none">${generateTimeSlots().map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+                  </div>
+                  <input type="text" id="block-reason" placeholder="Motivo (Ej. Cita médica, Asunto personal...)" class="w-full bg-zinc-700/50 border border-zinc-600 focus:border-gold-400 p-3 rounded-xl text-white focus:outline-none">
+                  <button onclick="window.blockTimeSlot()" class="w-full bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white py-3 rounded-xl font-bold transition flex justify-center items-center gap-2">
+                    <i data-lucide="calendar-x" class="w-4 h-4"></i> Guardar Bloqueo Libre
+                  </button>
+                </div>
+              </div>
+
+              <div class="glass rounded-2xl p-6 border border-zinc-700/50">
+                <h2 class="font-display text-xl text-white mb-4">MIS BLOQUEOS ACTIVOS</h2>
+                <div class="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                    ${myBlocks.length > 0 ? myBlocks.map(b => `
+                        <div class="bg-zinc-800/80 border border-zinc-700 p-4 rounded-xl flex items-center justify-between group hover:border-red-500/30 transition">
+                            <div>
+                                <p class="text-white font-medium flex items-center gap-2">
+                                  ${b.reason || 'Ocupado'}
+                                  ${b.reason === 'Hora de Comida' ? '<i data-lucide="coffee" class="w-4 h-4 text-gold-400"></i>' : ''}
+                                </p>
+                                <p class="text-sm text-zinc-400 mt-1"><i data-lucide="calendar" class="w-3 h-3 inline mr-1"></i> ${formatDate(b.date)}</p>
+                                <p class="text-xs text-red-400 mt-1 font-bold tracking-wider"><i data-lucide="clock" class="w-3 h-3 inline mr-1"></i> ${b.time}</p>
+                            </div>
+                            <button onclick="window.deleteBlock('${b.id || b.__backendId}')" class="p-2 text-zinc-500 hover:text-red-400 transition bg-zinc-900 rounded-lg border border-transparent hover:border-red-500/30" title="Eliminar Bloqueo">
+                                <i data-lucide="trash-2" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    `).join('') : `
+                      <div class="text-center py-12">
+                        <i data-lucide="unlock" class="w-12 h-12 text-zinc-600 mx-auto mb-3"></i>
+                        <p class="text-zinc-500 text-sm">No tienes horarios bloqueados. Toda tu agenda está abierta.</p>
+                      </div>
+                    `}
+                </div>
+              </div>
+          </div>
+        </div>
+      `;
+    }
+    window.blockTimeSlot = async () => {
+      const d = document.getElementById('block-date').value;
+      const s = document.getElementById('block-start').value;
+      const e = document.getElementById('block-end').value;
+      const r = document.getElementById('block-reason').value;
+      if(!d) return showToast('Selecciona una fecha', 'error');
+      
+      const barberId = window.currentUser.barber_id || window.currentUser.id;
+      
+      try {
+        await addDoc(collection(db, "blockedSlots"), { 
+            barber_id: barberId, 
+            date: d, 
+            time: `${s}-${e}`, 
+            reason: r || 'Ocupado' 
+        });
+        showToast('Horario bloqueado exitosamente', 'success');
+      } catch(error) { showToast('Error al bloquear', 'error'); }
+    }
+
+   // NUEVA FUNCIÓN: Botón rápido de Comida personalizable para el día de HOY
+   window.blockLunchTime = async () => {
+      const barberId = window.currentUser.barber_id || window.currentUser.id;
+      const startTime = document.getElementById('lunch-start').value;
+      const endTime = document.getElementById('lunch-end').value;
+      
+      // Obtener la fecha local de hoy
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+      if (startTime >= endTime) {
+         return showToast('La hora de fin debe ser mayor a la hora de inicio', 'error');
+      }
+      
+      try {
+          document.getElementById('loading-screen').classList.remove('hidden');
+
+          // Comprobamos que no exista ya ese bloqueo exacto para no duplicar datos
+          const alreadyBlocked = window.appData.blockedSlots.find(b => 
+              b.barber_id === barberId && b.date === todayStr && b.time === `${startTime}-${endTime}`
+          );
+
+          if(!alreadyBlocked) {
+              await addDoc(collection(db, "blockedSlots"), { 
+                  barber_id: barberId, 
+                  date: todayStr, 
+                  time: `${startTime}-${endTime}`, 
+                  reason: 'Hora de Comida'
+              });
+              showToast('¡Hora de comida bloqueada para hoy!', 'success');
+          } else {
+              showToast('Este horario ya estaba bloqueado', 'warning');
+          }
+
+          document.getElementById('loading-screen').classList.add('hidden');
+      } catch(error) {
+          console.error(error);
+          document.getElementById('loading-screen').classList.add('hidden');
+          showToast('Error al procesar el bloqueo', 'error');
+      }
+    }
+
+    // NUEVA FUNCIÓN: Eliminar un bloqueo si el barbero se arrepiente
+    window.deleteBlock = async (id) => {
+        if(confirm('¿Quieres eliminar este bloqueo y abrir tu agenda en este horario?')) {
+            try {
+                await deleteDoc(doc(db, "blockedSlots", id));
+                showToast('Horario liberado', 'success');
+            } catch(e) {
+                showToast('Error al liberar horario', 'error');
+            }
+        }
+    }
+
+    function renderClients() {
+      const clients = window.appData.users.filter(u => u.role === 'client');
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8"><h1 class="font-display text-3xl text-white">CLIENTES</h1></div>
+          <div class="glass rounded-2xl p-6 space-y-3">
+            ${clients.map(c => `
+              <div class="bg-zinc-700/30 p-4 rounded-xl flex justify-between">
+                <div><p class="text-white">${c.name}</p><p class="text-zinc-400 text-sm">${c.email}</p></div>
+                <p class="text-gold-400">${c.phone}</p>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // --- ADMIN VIEWS ---
+    function renderAllAppointments() {
+      const allAppts = window.appData.appointments.sort((a,b) => new Date(b.date) - new Date(a.date));
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+      const barbers = window.appData.barbers.length > 0 ? window.appData.barbers : defaultBarbersFallback;
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8"><h1 class="font-display text-3xl text-white">TODAS LAS CITAS</h1></div>
+          <div class="glass rounded-2xl p-6 overflow-x-auto">
+            <table class="w-full min-w-[800px] text-left">
+              <thead class="text-zinc-400 border-b border-zinc-700"><tr><th class="pb-3">Cliente</th><th class="pb-3">Servicio</th><th class="pb-3">Barbero</th><th class="pb-3">Fecha</th><th class="pb-3">Estado</th></tr></thead>
+              <tbody class="divide-y divide-zinc-700/50">
+                ${allAppts.map(apt => {
+                  const s = activeServices.find(ser => ser.id === apt.service_name) || {name: apt.service_name};
+                  const b = barbers.find(bar => bar.id === apt.barber_id) || {name: 'N/A'};
+                  return `<tr class="text-white"><td class="py-3">${apt.notes}</td><td class="py-3">${s.name}</td><td class="py-3">${b.name}</td><td class="py-3">${apt.date} ${apt.time}</td><td class="py-3"><span class="px-2 py-1 rounded text-xs ${getStatusColor(apt.status)}">${getStatusLabel(apt.status)}</span></td></tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderServicesAdmin() {
+      // Tomamos los servicios de Firebase
+      const services = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+      
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="flex justify-between items-center mb-6">
+            <h1 class="font-display text-3xl text-white tracking-wide uppercase">SERVICIOS</h1>
+            <button onclick="window.showAddServiceModal()" class="gradient-gold text-zinc-900 px-4 py-2 rounded-xl font-bold transition hover:opacity-90 flex items-center gap-2">
+              <i data-lucide="plus" class="w-5 h-5"></i> Añadir Servicio
+            </button>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${services.length > 0 ? services.map(s => `
+              <div class="flex justify-between items-center bg-zinc-800/80 hover:bg-zinc-700/80 p-5 rounded-xl transition group border border-zinc-700/50">
+                <div>
+                  <p class="text-white font-bold text-xl mb-1">${s.name}</p>
+                  <p class="text-zinc-400 text-sm mb-2">${s.description || 'Sin descripción'}</p>
+                  <p class="text-zinc-500 text-xs font-medium"><i data-lucide="clock" class="w-3 h-3 inline mr-1"></i>${s.duration} min</p>
+                </div>
+                <div class="flex flex-col items-end gap-3">
+                  <p class="text-gold-400 font-display text-3xl">${s.price}$</p>
+                  
+                  <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onclick="window.showEditServiceModal('${s.id || s.__backendId}')" class="text-zinc-400 hover:text-white bg-zinc-900/80 p-2 rounded-lg transition" title="Editar">
+                      <i data-lucide="edit-2" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="window.deleteService('${s.id || s.__backendId}')" class="text-zinc-400 hover:text-red-400 bg-zinc-900/80 p-2 rounded-lg transition" title="Eliminar">
+                      <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `).join('') : `
+              <div class="col-span-1 md:col-span-2 text-center py-12 bg-zinc-800/30 rounded-2xl border border-zinc-700/50">
+                <i data-lucide="scissors" class="w-12 h-12 text-zinc-600 mx-auto mb-4"></i>
+                <p class="text-zinc-400 text-lg">Aún no hay servicios registrados</p>
+                <p class="text-zinc-500 text-sm mt-2">Haz clic en "Añadir Servicio" para comenzar</p>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderBarbers() {
+      // Tomamos los barberos de Firebase o los de prueba (si los de prueba están en [], la lista quedará en 0)
+      const barbers = window.appData.barbers.length > 0 ? window.appData.barbers : defaultBarbersFallback;
+      
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="flex justify-between items-center mb-6">
+            <h1 class="font-display text-3xl text-white tracking-wide uppercase">BARBEROS</h1>
+            <button onclick="window.showAddBarberModal()" class="gradient-gold text-zinc-900 px-4 py-2 rounded-xl font-bold transition hover:opacity-90 flex items-center gap-2">
+              <i data-lucide="user-plus" class="w-5 h-5"></i> Añadir Barbero
+            </button>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            ${barbers.length > 0 ? barbers.map(b => `
+              <div class="glass rounded-2xl p-6 relative group hover:bg-zinc-800/50 transition">
+                <div class="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onclick="window.showEditBarberModal('${b.__backendId || b.id}')" class="text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 p-2 rounded-lg transition" title="Editar">
+                    <i data-lucide="edit" class="w-4 h-4"></i>
+                  </button>
+                  <button onclick="window.deleteBarber('${b.__backendId || b.id}')" class="text-zinc-400 hover:text-red-400 bg-zinc-800 hover:bg-red-500/20 p-2 rounded-lg transition" title="Eliminar">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                  </button>
+                </div>
+
+                <div class="text-center pt-2">
+                  <div class="w-20 h-20 bg-zinc-700 rounded-full mx-auto mb-4 flex items-center justify-center border-2 border-gold-400/20">
+                    <i data-lucide="scissors" class="text-gold-400 w-8 h-8"></i>
+                  </div>
+                  <h3 class="font-display text-2xl text-white mb-1">${b.name}</h3>
+                  <p class="text-gold-400 text-sm font-medium mb-1">${b.specialty || 'Barbero General'}</p>
+                  <p class="text-zinc-500 text-xs">${b.email || 'Sin correo'}</p>
+                </div>
+              </div>
+            `).join('') : `
+              <div class="col-span-1 md:col-span-3 text-center py-12 bg-zinc-800/30 rounded-2xl border border-zinc-700/50">
+                <i data-lucide="users" class="w-12 h-12 text-zinc-600 mx-auto mb-4"></i>
+                <p class="text-zinc-400 text-lg">Aún no hay barberos registrados</p>
+                <p class="text-zinc-500 text-sm mt-2">Haz clic en "Añadir Barbero" para comenzar</p>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+    
+
+    function renderUsers() {
+      const usersList = window.appData.users || [];
+      
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8">
+            <h1 class="font-display text-3xl text-white tracking-wide uppercase">USUARIOS</h1>
+            <p class="text-zinc-400">Gestión de cuentas de acceso</p>
+          </div>
+          
+          <div class="glass rounded-2xl p-6">
+            ${usersList.length > 0 ? usersList.map(u => `
+              <div class="bg-zinc-800/80 hover:bg-zinc-700/80 p-4 mb-3 rounded-xl flex items-center justify-between transition group border border-zinc-700/50">
+                <div>
+                  <p class="text-white font-medium flex items-center gap-2">
+                    ${u.name} 
+                    <span class="text-gold-400 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-gold-400/10 border border-gold-400/20">
+                      ${u.role}
+                    </span>
+                  </p>
+                  <p class="text-zinc-400 text-sm mt-1">
+                    <i data-lucide="mail" class="w-3 h-3 inline mr-1"></i>${u.email}
+                    ${u.phone ? `<span class="ml-3"><i data-lucide="phone" class="w-3 h-3 inline mr-1"></i>${u.phone}</span>` : ''}
+                  </p>
+                </div>
+                
+                <div class="opacity-0 group-hover:opacity-100 transition-opacity">
+                  ${window.currentUser && (window.currentUser.id === u.id || window.currentUser.__backendId === u.__backendId) ? `
+                    <span class="text-zinc-500 text-xs italic px-3">Tú</span>
+                  ` : `
+                    <button onclick="window.deleteUser('${u.__backendId || u.id}')" class="text-zinc-400 hover:text-red-400 bg-zinc-900/80 p-2 rounded-lg transition" title="Eliminar Usuario">
+                      <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                  `}
+                </div>
+              </div>
+            `).join('') : `
+              <div class="text-center py-12 text-zinc-400">
+                <i data-lucide="users" class="w-12 h-12 text-zinc-600 mx-auto mb-4"></i>
+                <p>No hay usuarios registrados</p>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    // ==========================================
+    // 🗑️ ELIMINAR USUARIOS (ADMIN)
+    // ==========================================
+    window.deleteUser = async (id) => {
+      // 1. Candado de seguridad: Evitar borrar tu propia sesión
+      if (window.currentUser && (window.currentUser.id === id || window.currentUser.__backendId === id)) {
+        alert('⚠️ Operación denegada: No puedes eliminar tu propia cuenta de administrador.');
+        return;
+      }
+
+      // 2. Confirmación antes de borrar
+      if (confirm('¿Estás seguro de eliminar este usuario? Perderá el acceso al sistema permanentemente.')) {
+        try {
+          // Eliminamos el documento de la colección 'users'
+          await deleteDoc(doc(db, "users", id));
+          
+          showToast('Usuario eliminado con éxito', 'success');
+        } catch (error) {
+          console.error(error);
+          alert("Error de Firebase al intentar borrar el usuario: " + error.message);
+        }
+      }
+    }
+
+    // --- ESTADÍSTICAS Y GRÁFICAS ---
+    function renderStats() {
+      // 1. Filtrar solo citas completadas
+      const completedAppointments = window.appData.appointments.filter(a => a.status === 'completed');
+      
+      // 2. Función para obtener el precio de cada cita
+      const getPrice = (apt) => {
+        const s = window.appData.services.find(ser => ser.id === apt.service_name || ser.__backendId === apt.service_name);
+        return s && s.price ? Number(s.price) : 0;
+      };
+
+      // 3. Fechas para los cálculos
+      const today = new Date();
+      const currentMonth = today.getMonth();
+      const currentYear = today.getFullYear();
+      
+      const toDateString = (date) => {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      };
+
+      const todayStr = toDateString(today);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(today.getDate() - 6);
+
+      // 4. Calcular Métricas de las Tarjetas Superiores
+      const dailySales = completedAppointments
+        .filter(a => a.date === todayStr)
+        .reduce((sum, a) => sum + getPrice(a), 0);
+
+      const weeklySales = completedAppointments
+        .filter(a => {
+           const aptDate = new Date(a.date + "T00:00:00"); 
+           return aptDate >= new Date(sevenDaysAgo.setHours(0,0,0,0));
+        })
+        .reduce((sum, a) => sum + getPrice(a), 0);
+
+      const monthlySales = completedAppointments
+        .filter(a => {
+           const aptDate = new Date(a.date + "T00:00:00");
+           return aptDate.getMonth() === currentMonth && aptDate.getFullYear() === currentYear;
+        })
+        .reduce((sum, a) => sum + getPrice(a), 0);
+
+      const totalRev = completedAppointments.reduce((sum, a) => sum + getPrice(a), 0);
+
+      // 5. Iniciar la gráfica por defecto en "Semana" después de renderizar el HTML
+      setTimeout(() => {
+        window.updateSalesChart('week');
+      }, 50);
+
+      // 6. Retornar el HTML
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8">
+            <h1 class="font-display text-3xl tracking-wide uppercase text-white">ESTADÍSTICAS GLOBALES</h1>
+            <p class="text-zinc-400">Rendimiento financiero de tu negocio basado en citas completadas</p>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="glass rounded-2xl p-6 relative overflow-hidden group">
+              <div class="absolute -right-4 -top-4 p-4 opacity-5 group-hover:opacity-10 transition transform group-hover:scale-110">
+                 <i data-lucide="calendar" class="w-24 h-24 text-white"></i>
+              </div>
+              <p class="text-sm text-zinc-400 font-medium mb-1">Ventas de Hoy</p>
+              <p class="font-display text-4xl text-white">${dailySales}$</p>
+            </div>
+            
+            <div class="glass rounded-2xl p-6 relative overflow-hidden group">
+              <div class="absolute -right-4 -top-4 p-4 opacity-5 group-hover:opacity-10 transition transform group-hover:scale-110">
+                 <i data-lucide="bar-chart-2" class="w-24 h-24 text-white"></i>
+              </div>
+              <p class="text-sm text-zinc-400 font-medium mb-1">Últimos 7 Días</p>
+              <p class="font-display text-4xl text-white">${weeklySales}$</p>
+            </div>
+            
+            <div class="glass rounded-2xl p-6 relative overflow-hidden group">
+              <div class="absolute -right-4 -top-4 p-4 opacity-5 group-hover:opacity-10 transition transform group-hover:scale-110">
+                 <i data-lucide="calendar-check" class="w-24 h-24 text-white"></i>
+              </div>
+              <p class="text-sm text-zinc-400 font-medium mb-1">Este Mes</p>
+              <p class="font-display text-4xl text-white">${monthlySales}$</p>
+            </div>
+            
+            <div class="glass rounded-2xl p-6 border border-gold-400/30 relative overflow-hidden group bg-gold-400/5">
+              <div class="absolute -right-4 -top-4 p-4 opacity-10 transition transform group-hover:scale-110">
+                 <i data-lucide="banknote" class="w-24 h-24 text-gold-400"></i>
+              </div>
+              <p class="text-sm text-gold-400 font-medium mb-1">Total Histórico</p>
+              <p class="font-display text-4xl text-gold-400">${totalRev}$</p>
+            </div>
+          </div>
+          
+          <div class="glass rounded-2xl p-6 border border-zinc-700/50">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+              <h3 class="text-white font-medium flex items-center gap-2">
+                <i data-lucide="trending-up" class="w-5 h-5 text-gold-400"></i>
+                <span id="chart-title">Ingresos de los últimos 7 días</span>
+              </h3>
+              
+              <div class="flex bg-zinc-800/80 p-1 rounded-lg border border-zinc-700/50">
+                <button id="btn-chart-week" onclick="window.updateSalesChart('week')" class="chart-btn px-4 py-1.5 text-xs font-medium rounded-md transition-all">7 Días</button>
+                <button id="btn-chart-month" onclick="window.updateSalesChart('month')" class="chart-btn px-4 py-1.5 text-xs font-medium rounded-md transition-all">30 Días</button>
+                <button id="btn-chart-year" onclick="window.updateSalesChart('year')" class="chart-btn px-4 py-1.5 text-xs font-medium rounded-md transition-all">Este Año</button>
+              </div>
+            </div>
+            
+            <div class="w-full h-72 relative">
+              <canvas id="salesChart"></canvas>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Función para actualizar y dibujar la gráfica según el filtro seleccionado
+    window.updateSalesChart = (period) => {
+      const completedAppointments = window.appData.appointments.filter(a => a.status === 'completed');
+      const getPrice = (apt) => {
+        const s = window.appData.services.find(ser => ser.id === apt.service_name || ser.__backendId === apt.service_name);
+        return s && s.price ? Number(s.price) : 0;
+      };
+
+      let labels = [];
+      let data = [];
+      const today = new Date();
+      let chartTitle = '';
+
+      if (period === 'week') {
+        chartTitle = 'Ingresos de los últimos 7 días';
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(); d.setDate(today.getDate() - i);
+          const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          labels.push(d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }));
+          data.push(completedAppointments.filter(a => a.date === dateStr).reduce((sum, a) => sum + getPrice(a), 0));
+        }
+      } else if (period === 'month') {
+        chartTitle = 'Ingresos de los últimos 30 días';
+        for (let i = 29; i >= 0; i--) {
+          const d = new Date(); d.setDate(today.getDate() - i);
+          const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          labels.push(d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }));
+          data.push(completedAppointments.filter(a => a.date === dateStr).reduce((sum, a) => sum + getPrice(a), 0));
+        }
+      } else if (period === 'year') {
+        chartTitle = `Ingresos del año ${today.getFullYear()}`;
+        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        labels = monthNames;
+        data = new Array(12).fill(0);
+        completedAppointments.forEach(a => {
+           const aptDate = new Date(a.date + "T00:00:00");
+           if(aptDate.getFullYear() === today.getFullYear()) {
+              data[aptDate.getMonth()] += getPrice(a);
+           }
+        });
+      }
+
+      // Actualizar texto del título
+      const titleEl = document.getElementById('chart-title');
+      if (titleEl) titleEl.innerText = chartTitle;
+
+      // Actualizar estilos de los botones (Filtro Activo)
+      document.querySelectorAll('.chart-btn').forEach(btn => {
+         btn.classList.remove('bg-gold-400', 'text-zinc-900', 'shadow-sm');
+         btn.classList.add('text-zinc-400', 'hover:text-white');
+      });
+      const activeBtn = document.getElementById(`btn-chart-${period}`);
+      if (activeBtn) {
+         activeBtn.classList.remove('text-zinc-400', 'hover:text-white');
+         activeBtn.classList.add('bg-gold-400', 'text-zinc-900', 'shadow-sm');
+      }
+
+      // Dibujar la gráfica con Chart.js
+      const ctx = document.getElementById('salesChart');
+      if (ctx && window.Chart) {
+        if (window.salesChartInstance) window.salesChartInstance.destroy();
+        
+        window.salesChartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Ingresos ($)',
+              data: data,
+              backgroundColor: 'rgba(212, 175, 55, 0.15)', // Relleno dorado transparente
+              borderColor: '#D4AF37', // Línea dorada
+              borderWidth: 3,
+              pointBackgroundColor: '#18181b', 
+              pointBorderColor: '#D4AF37',
+              pointBorderWidth: 2,
+              pointRadius: period === 'month' ? 2 : 4, // Puntos más pequeños si son 30 días
+              pointHoverRadius: 6,
+              fill: true,
+              tension: 0.4 // Líneas curvas suaves
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { 
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: 'rgba(24, 24, 27, 0.9)',
+                titleColor: '#D4AF37',
+                bodyColor: '#fff',
+                borderColor: 'rgba(212, 175, 55, 0.3)',
+                borderWidth: 1,
+                padding: 10,
+                displayColors: false,
+                callbacks: {
+                  label: function(context) { return '$' + context.parsed.y; }
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                grid: { color: 'rgba(255, 255, 255, 0.05)' }, 
+                ticks: { color: '#a1a1aa' } 
+              },
+              x: {
+                grid: { display: false },
+                ticks: { 
+                  color: '#a1a1aa',
+                  maxTicksLimit: period === 'month' ? 10 : 12 // Evitar que se amontonen las fechas
+                } 
+              }
+            }
+          }
+        });
+      }
+    };
+
+    function renderPromotionsAdmin() {
+      return `<div class="p-6"><h1 class="font-display text-3xl text-white mb-4">Módulo de Promociones Admin</h1><p class="text-zinc-400">Implementa la subida de datos a la colección 'promotions' aquí.</p></div>`;
+    }
+// --- GESTIÓN DE SUCURSALES (ADMIN) ---
+function renderBranches() {
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="flex justify-between items-center mb-6">
+            <h1 class="font-display text-3xl text-white tracking-wide uppercase">SUCURSALES</h1>
+            <button onclick="window.showAddBranchModal()" class="gradient-gold text-zinc-900 px-4 py-2 rounded-xl font-bold transition hover:opacity-90 flex items-center gap-2">
+              <i data-lucide="store" class="w-5 h-5"></i> Nueva Sucursal
+            </button>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="glass rounded-2xl p-6 border border-gold-400/50 bg-gold-400/5">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-display text-xl text-gold-400">Sede Central</h3>
+                    <i data-lucide="star" class="text-gold-400 w-5 h-5 fill-current"></i>
+                </div>
+                <p class="text-zinc-400 text-sm">Administración Principal</p>
+            </div>
+            
+            ${window.appData.branches.map(b => `
+              <div class="glass rounded-2xl p-6 flex flex-col justify-between relative group hover:bg-zinc-800/50 transition">
+                <div>
+                  <div class="flex items-start justify-between mb-2">
+                    <h3 class="font-display text-xl text-white">${b.branch_name}</h3>
+                    
+                    <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="window.showEditBranchModal('${b.id || b.__backendId}')" class="text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 p-2 rounded-lg transition" title="Editar">
+                            <i data-lucide="edit-2" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="window.deleteBranch('${b.id || b.__backendId}')" class="text-zinc-400 hover:text-red-400 bg-zinc-800 hover:bg-red-500/20 p-2 rounded-lg transition" title="Eliminar">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                  </div>
+                  <p class="text-zinc-400 text-sm mb-1"><i data-lucide="map-pin" class="w-3 h-3 inline mr-1"></i>${b.branch_location}</p>
+                  ${b.branch_phone ? `<p class="text-zinc-500 text-sm"><i data-lucide="phone" class="w-3 h-3 inline mr-1"></i>${b.branch_phone}</p>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+   // Modal para Editar Barbero
+   window.showEditBarberModal = (id) => {
+      const barbersList = window.appData.barbers.length > 0 ? window.appData.barbers : defaultBarbersFallback;
+      const barber = barbersList.find(b => (b.__backendId === id || b.id === id));
+      
+      if (!barber) {
+        showToast('Error: Barbero no encontrado', 'error');
+        return;
+      }
+
+      const userRecord = window.appData.users.find(u => u.barber_id === id);
+      const currentPass = userRecord && userRecord.pass_temporal ? userRecord.pass_temporal : '';
+      
+      // Identificar la sucursal actual del barbero para dejarla seleccionada
+      const currentBranchId = barber.branch_id || 'main';
+      const branchOptions = `<option value="main" ${currentBranchId === 'main' ? 'selected' : ''}>Sucursal Principal</option>` + 
+        window.appData.branches.map(b => {
+            const bId = b.id || b.__backendId;
+            return `<option value="${bId}" ${currentBranchId === bId ? 'selected' : ''}>${b.branch_name}</option>`;
+        }).join('');
+
+      window.showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="font-display text-2xl text-white tracking-wide uppercase">EDITAR BARBERO</h2>
+            <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+          
+          <div class="space-y-4 mb-6">
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Nombre</label>
+              <input type="text" id="edit-barber-name" value="${barber.name || ''}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Especialidad</label>
+                <input type="text" id="edit-barber-spec" value="${barber.specialty || ''}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Sucursal</label>
+                <select id="edit-barber-branch" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none appearance-none">
+                  ${branchOptions}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-indigo-900/40 border border-indigo-500/30 rounded-xl p-5 mb-6">
+            <h4 class="font-medium text-indigo-400 mb-4 flex items-center gap-2">
+              <i data-lucide="key" class="w-4 h-4"></i> Datos de Acceso
+            </h4>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Correo Electrónico</label>
+                <input type="email" id="edit-barber-email" value="${barber.email || ''}" class="w-full bg-zinc-800/80 border border-zinc-700/50 rounded-xl py-3 px-4 text-white focus:border-indigo-400 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Nueva Contraseña Temporal</label>
+                <input type="text" id="edit-barber-pass" placeholder="${currentPass ? 'Actual: ' + currentPass : 'Escribe para cambiar...'}" class="w-full bg-zinc-800/80 border border-zinc-700/50 rounded-xl py-3 px-4 text-white focus:border-indigo-400 focus:outline-none">
+                <p class="text-xs text-zinc-500 mt-2">Déjalo en blanco si no deseas cambiarla.</p>
+              </div>
+            </div>
+          </div>
+          
+          <button id="btn-update-barber" onclick="window.updateBarber('${id}')" class="w-full bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-xl font-medium transition flex items-center justify-center gap-2">
+            <i data-lucide="edit-2" class="w-5 h-5"></i> Guardar Cambios
+          </button>
+        </div>
+      `);
+    }
+    // --- FUNCIONES SEGURAS DE EDICIÓN Y ELIMINACIÓN ---
+
+    // 1. ACTUALIZAR BARBERO
+    window.updateBarber = async (id) => {
+      if (id === 'b1' || id === 'b2') {
+         alert('⚠️ No puedes editar a los barberos de demostración.');
+         window.closeModal();
+         return;
+      }
+
+      const nameInput = document.getElementById('edit-barber-name');
+      const specInput = document.getElementById('edit-barber-spec');
+      const branchInput = document.getElementById('edit-barber-branch'); 
+      const emailInput = document.getElementById('edit-barber-email');
+      const passInput = document.getElementById('edit-barber-pass');
+      const btn = document.getElementById('btn-update-barber');
+
+      if (!nameInput || !emailInput || !branchInput) return;
+
+      const name = nameInput.value.trim();
+      const spec = specInput.value.trim();
+      const branchId = branchInput.value;
+      const email = emailInput.value.trim().toLowerCase();
+      const pass = passInput ? passInput.value.trim() : "";
+
+      if (!name || !email) return showToast('El nombre y correo son obligatorios', 'error');
+
+      try {
+        if(btn) btn.innerHTML = 'Guardando...';
+
+        // 1. Actualizamos el registro público del barbero
+        await updateDoc(doc(db, "barbers", id), {
+          name: name,
+          specialty: spec,
+          branch_id: branchId,
+          email: email
+        });
+
+        // 2. Actualizamos su cuenta de sistema (Si existe y confirmando que es rol barbero)
+        const userRecord = window.appData.users.find(u => u.barber_id === id);
+        if (userRecord && userRecord.__backendId && userRecord.role === 'barber') {
+          let userUpdates = { 
+              name: name, 
+              email: email,
+              branch_id: branchId 
+          };
+          if (pass !== "") userUpdates.pass_temporal = pass;
+          
+          await updateDoc(doc(db, "users", userRecord.__backendId), userUpdates);
+        }
+        
+        window.closeModal();
+        showToast('Barbero actualizado correctamente', 'success');
+      } catch (error) {
+        console.error(error);
+        if(btn) { btn.innerHTML = '<i data-lucide="edit-2" class="w-5 h-5"></i> Guardar Cambios'; lucide.createIcons(); }
+        alert("Error de Firebase: " + error.message);
+      }
+    }
+ // 2. ELIMINAR BARBERO
+ window.deleteBarber = async (id) => {
+      if (confirm('¿Estás seguro de eliminar a este barbero permanentemente?')) {
+        try {
+          await deleteDoc(doc(db, "barbers", id));
+          
+          // Buscar y eliminar su cuenta de usuario
+          const userRecord = window.appData.users.find(u => u.barber_id === id);
+          if (userRecord && userRecord.__backendId) {
+             await deleteDoc(doc(db, "users", userRecord.__backendId));
+          }
+          
+          showToast('Barbero eliminado', 'success');
+        } catch (error) {
+          console.error(error);
+          alert("Error al borrar en Firebase: " + error.message);
+        }
+      }
+    }
+
+   // 4. Actualizar Servicio Editado en Firebase
+   window.updateService = async (id) => {
+      const nameInput = document.getElementById('edit-service-name');
+      const descInput = document.getElementById('edit-service-desc');
+      const priceInput = document.getElementById('edit-service-price');
+      const durationInput = document.getElementById('edit-service-duration');
+      const btn = document.getElementById('btn-update-service');
+
+      if (!nameInput || !priceInput || !durationInput) return;
+
+      const name = nameInput.value.trim();
+      const desc = descInput.value.trim();
+      const price = priceInput.value;
+      const duration = durationInput.value;
+
+      if (!name || !price || !duration) return showToast('Nombre, precio y duración son obligatorios', 'error');
+
+      try {
+        if(btn) btn.innerHTML = 'Guardando...';
+        await updateDoc(doc(db, "services", id), {
+          name: name,
+          description: desc,
+          price: Number(price),
+          duration: Number(duration)
+        });
+        window.closeModal();
+        showToast('Servicio actualizado correctamente', 'success');
+      } catch (error) {
+        console.error(error);
+        if(btn) { btn.innerHTML = '<i data-lucide="edit-2" class="w-5 h-5"></i> Guardar Cambios'; lucide.createIcons(); }
+        alert("Error de Firebase al actualizar: " + error.message);
+      }
+    }
+
+    /// 5. Eliminar Servicio Seguro
+    window.deleteService = async (id) => {
+      if (confirm('¿Estás seguro de eliminar este servicio permanentemente?')) {
+        try {
+          await deleteDoc(doc(db, "services", id));
+          showToast('Servicio eliminado', 'success');
+        } catch (error) {
+          alert("Error al borrar en Firebase: " + error.message);
+        }
+      }
+    }
+
+    // Función para ejecutar la actualización en Firebase
+    window.updateBranch = async (id) => {
+      const name = document.getElementById('edit-branch-name').value.trim();
+      const loc = document.getElementById('edit-branch-loc').value.trim();
+      const phone = document.getElementById('edit-branch-phone').value.trim();
+
+      if(!name || !loc) return showToast('Nombre y ubicación son obligatorios', 'error');
+
+      try {
+        await updateDoc(doc(db, "branches", id), {
+            branch_name: name,
+            branch_location: loc,
+            branch_phone: phone
+        });
+        window.closeModal();
+        showToast('Sucursal actualizada', 'success');
+      } catch (error) {
+        showToast('Error al actualizar', 'error');
+      }
+    }
+
+    // Función para eliminar la sucursal
+    window.deleteBranch = async (id) => {
+        if(confirm('¿Estás seguro de eliminar esta sucursal de forma permanente?')) {
+            try {
+                await deleteDoc(doc(db, "branches", id));
+                showToast('Sucursal eliminada', 'success');
+            } catch (error) {
+                showToast('Error al eliminar', 'error');
+            }
+        }
+    }
+
+    // --- MODALS AND ACTIONS ---
+    window.updateAppointmentStatus = async (id, status) => {
+      try { await updateDoc(doc(db, "appointments", id), { status }); showToast('Cita ' + status, 'success'); } 
+      catch(e) { showToast('Error al actualizar', 'error'); }
+    }
+    
+    window.showCancelModal = (id) => {
+      window.showModal(`
+        <div class="p-6 text-center">
+          <h2 class="font-display text-2xl text-white mb-4">¿Cancelar Cita?</h2>
+          <div class="flex gap-4"><button onclick="window.closeModal()" class="flex-1 bg-zinc-700 py-3 rounded-xl text-white">No</button><button onclick="window.updateAppointmentStatus('${id}', 'cancelled'); window.closeModal();" class="flex-1 bg-red-500 py-3 rounded-xl text-white">Sí, Cancelar</button></div>
+        </div>
+      `);
+    }
+    window.showRatingModal = (id) => {
+      window.selectedRating = 5;
+      window.showModal(`
+        <div class="p-6 relative text-center">
+          <button onclick="window.closeModal()" class="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+          <h2 class="font-display text-2xl text-white mb-4 mt-2">Calificar Cita</h2>
+          <button onclick="window.submitRating('${id}')" class="w-full gradient-gold py-3 rounded-xl font-bold text-zinc-900 mt-4">Enviar 5 Estrellas (Demo)</button>
+        </div>
+      `);
+    }
+
+    window.submitRating = async (id) => {
+      try { await updateDoc(doc(db, "appointments", id), { rating: 5 }); window.closeModal(); showToast('¡Gracias!', 'success'); }
+      catch(e) { showToast('Error', 'error'); }
+    }
+
+    window.showAddServiceModal = () => {
+      window.showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="font-display text-2xl text-white tracking-wide uppercase">AÑADIR SERVICIO</h2>
+            <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-red-400 transition">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+          <div class="space-y-4 mb-6">
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Nombre del Servicio</label>
+              <input type="text" id="ns-name" placeholder="Ej: Corte Premium" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Descripción</label>
+              <input type="text" id="ns-desc" placeholder="Detalles del servicio..." class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Precio ($)</label>
+                <input type="number" id="ns-price" placeholder="15" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Duración (min)</label>
+                <input type="number" id="ns-duration" placeholder="30" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+              </div>
+            </div>
+          </div>
+          <button id="btn-save-new-service" onclick="window.saveNewService()" class="w-full gradient-gold text-zinc-900 py-3 rounded-xl font-bold hover:opacity-90 transition flex items-center justify-center gap-2">
+            <i data-lucide="save" class="w-5 h-5"></i> Guardar Servicio
+          </button>
+        </div>
+      `);
+    }
+    
+   // 2. Guardar Nuevo Servicio en Firebase
+   window.saveNewService = async () => {
+      const n = document.getElementById('ns-name').value.trim(); 
+      const d = document.getElementById('ns-desc').value.trim(); 
+      const p = document.getElementById('ns-price').value; 
+      const t = document.getElementById('ns-duration').value;
+      const btn = document.getElementById('btn-save-service');
+
+      if(!n || !p || !t) return showToast('Nombre, precio y duración son requeridos', 'error');
+      
+      try {
+        if(btn) btn.innerHTML = 'Guardando...';
+        await addDoc(collection(db, "services"), { 
+          name: n, description: d, price: Number(p), duration: Number(t) 
+        }); 
+        window.closeModal(); 
+        showToast('Servicio guardado exitosamente', 'success'); 
+      } catch(e) { 
+        showToast('Error al guardar el servicio', 'error'); 
+        if(btn) { btn.innerHTML = '<i data-lucide="save" class="w-5 h-5"></i> Guardar Servicio'; lucide.createIcons(); }
+      }
+    }
+
+    
+
+    
+
+    // Eliminar Barbero
+    window.deleteBarber = async (id) => {
+      if (id === 'b1' || id === 'b2') {
+         showToast('Crea un barbero real para poder eliminarlo.', 'warning');
+         return;
+      }
+      if (confirm('¿Estás seguro de eliminar a este barbero?')) {
+        try {
+          await deleteDoc(doc(db, "barbers", id));
+          
+          // Opcional: También buscamos y eliminamos su cuenta de usuario para que no pueda entrar
+          const userRecord = window.appData.users.find(u => u.barber_id === id);
+          if (userRecord && userRecord.__backendId) {
+             await deleteDoc(doc(db, "users", userRecord.__backendId));
+          }
+          
+          showToast('Barbero eliminado correctamente', 'success');
+        } catch (error) {
+          console.error("Error de Firebase al eliminar barbero:", error);
+          showToast('Error de permisos en Firebase al eliminar', 'error');
+        }
+      }
+    }
+
+
+   // 3. Abrir Modal Editar Servicio (¡Esta es la que te faltaba!)
+   window.showEditServiceModal = (id) => {
+      const servicesList = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+      const service = servicesList.find(s => s.__backendId === id || s.id === id);
+      
+      if (!service) {
+        showToast('Error: Servicio no encontrado', 'error');
+        return;
+      }
+
+      window.showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="font-display text-2xl text-white tracking-wide uppercase">EDITAR SERVICIO</h2>
+            <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+          
+          <div class="space-y-4 mb-6">
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Nombre del Servicio</label>
+              <input type="text" id="edit-service-name" value="${service.name}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Descripción</label>
+              <input type="text" id="edit-service-desc" value="${service.description || ''}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Precio ($)</label>
+                <input type="number" id="edit-service-price" value="${service.price}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Duración (min)</label>
+                <input type="number" id="edit-service-duration" value="${service.duration}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+              </div>
+            </div>
+          </div>
+          
+          <button id="btn-update-service" onclick="window.updateService('${id}')" class="w-full bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-xl font-medium transition flex items-center justify-center gap-2">
+            <i data-lucide="edit-2" class="w-5 h-5"></i> Guardar Cambios
+          </button>
+        </div>
+      `);
+    }
+    window.saveNewBarber = async () => {
+      const name = document.getElementById('nb-name').value.trim();
+      const spec = document.getElementById('nb-spec').value.trim();
+      const email = document.getElementById('nb-email').value.trim().toLowerCase();
+      const pass = document.getElementById('nb-pass').value;
+
+      if(!name || !email || !pass) {
+        return showToast('Nombre, correo y contraseña son obligatorios', 'error');
+      }
+      
+      // FIREBASE EXIGE MÍNIMO 6 CARACTERES PARA LA CONTRASEÑA
+      if(pass.length < 6) {
+        return showToast('La contraseña debe tener al menos 6 caracteres', 'error');
+      }
+
+      try {
+        document.getElementById('loading-screen').classList.remove('hidden');
+
+        // 1. Añadimos al barbero a la lista de Barberos
+        const barberRef = await addDoc(collection(db, "barbers"), { 
+            name: name, 
+            specialty: spec, 
+            email: email,
+            rating: 5.0,
+            created_at: new Date().toISOString()
+        });
+
+        // 2. Pre-registramos su perfil como 'barber'
+        await addDoc(collection(db, "users"), {
+            name: name,
+            email: email,
+            role: 'barber',
+            barber_id: barberRef.id,
+            pass_temporal: pass, // Guardamos la temporal para que el Login lo auto-active
+            created_at: new Date().toISOString()
+        });
+
+        window.closeModal(); 
+        document.getElementById('loading-screen').classList.add('hidden');
+        showToast('Barbero guardado. Ya puede iniciar sesión.', 'success');
+      } catch (error) {
+        document.getElementById('loading-screen').classList.add('hidden');
+        showToast('Error al guardar barbero', 'error');
+      }
+    }
+    window.deleteBarber = async (id) => { if(confirm('¿Eliminar?')) await deleteDoc(doc(db, "barbers", id)); }
+
+    // Modal para Calificar Cita
+    window.showRatingModal = (id) => {
+      window.selectedRating = 5;
+      window.showModal(`
+        <div class="p-6 relative text-center">
+          <button onclick="window.closeModal()" class="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+          <h2 class="font-display text-2xl text-white mb-4 mt-2">Calificar Cita</h2>
+          <button onclick="window.submitRating('${id}')" class="w-full gradient-gold py-3 rounded-xl font-bold text-zinc-900 mt-4">Enviar 5 Estrellas (Demo)</button>
+        </div>
+      `);
+    }
+
+    // 1. Abrir Modal Añadir Servicio
+    window.showAddServiceModal = () => {
+      window.showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="font-display text-2xl text-white tracking-wide uppercase">AÑADIR SERVICIO</h2>
+            <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-red-400 transition">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+          <div class="space-y-4 mb-6">
+            <input type="text" id="ns-name" placeholder="Nombre (Ej: Corte Premium)" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            <input type="text" id="ns-desc" placeholder="Descripción" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            <div class="grid grid-cols-2 gap-4">
+              <input type="number" id="ns-price" placeholder="Precio ($)" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+              <input type="number" id="ns-duration" placeholder="Duración (min)" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+          </div>
+          <button id="btn-save-service" onclick="window.saveNewService()" class="w-full gradient-gold text-zinc-900 py-3 rounded-xl font-bold hover:opacity-90 transition flex items-center justify-center gap-2">
+             <i data-lucide="save" class="w-5 h-5"></i> Guardar Servicio
+          </button>
+        </div>
+      `);
+    }
+    // Modal para Añadir Barbero
+   // Modal para Añadir Barbero
+   window.showAddBarberModal = () => {
+      // Generar opciones de sucursales dinámicamente
+      const branchOptions = `<option value="main">Sucursal Principal</option>` + 
+        window.appData.branches.map(b => `<option value="${b.id || b.__backendId}">${b.branch_name}</option>`).join('');
+
+      window.showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="font-display text-2xl text-white tracking-wide uppercase">AÑADIR BARBERO</h2>
+            <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+          
+          <div class="space-y-4 mb-6">
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Nombre</label>
+              <input type="text" id="nb-name" placeholder="Nombre completo" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Especialidad</label>
+                <input type="text" id="nb-spec" placeholder="Ej: Cortes clásicos..." class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Sucursal</label>
+                <select id="nb-branch" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none appearance-none">
+                  ${branchOptions}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-indigo-900/40 border border-indigo-500/30 rounded-xl p-5 mb-6">
+            <h4 class="font-medium text-indigo-400 mb-4 flex items-center gap-2">
+              <i data-lucide="user" class="w-4 h-4"></i> Datos de Acceso
+            </h4>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Correo Electrónico</label>
+                <input type="email" id="nb-email" placeholder="barbero@barberpro.com" class="w-full bg-zinc-800/80 border border-zinc-700/50 rounded-xl py-3 px-4 text-white focus:border-indigo-400 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Contraseña Temporal</label>
+                <input type="password" id="nb-pass" placeholder="••••••••" class="w-full bg-zinc-800/80 border border-zinc-700/50 rounded-xl py-3 px-4 text-white focus:border-indigo-400 focus:outline-none">
+              </div>
+            </div>
+          </div>
+          
+          <button id="btn-save-new-barber" onclick="window.saveNewBarber()" class="w-full bg-gold-500 hover:bg-gold-400 text-zinc-900 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2">
+            <i data-lucide="save" class="w-5 h-5"></i> Guardar Barbero
+          </button>
+        </div>
+      `);
+    }
+    // Modal para Añadir Sucursal
+  // Modal para Añadir Sucursal
+  window.showAddBranchModal = () => {
+      window.showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="font-display text-2xl text-white tracking-wide uppercase">NUEVA SUCURSAL</h2>
+            <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+          
+          <div class="space-y-4 mb-6">
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Nombre de la Sucursal</label>
+              <input type="text" id="nb-branch" placeholder="Ej: Sucursal Centro" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white placeholder-zinc-500 focus:border-gold-400 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Ubicación</label>
+              <input type="text" id="nb-loc" placeholder="Ej: Calle Principal 123" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white placeholder-zinc-500 focus:border-gold-400 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Teléfono</label>
+              <input type="tel" id="nb-phone" placeholder="+34 600 000 000" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white placeholder-zinc-500 focus:border-gold-400 focus:outline-none">
+            </div>
+          </div>
+          
+          <div class="bg-indigo-900/40 border border-indigo-500/30 rounded-xl p-5 mb-6">
+            <h4 class="font-medium text-indigo-400 mb-4 flex items-center gap-2">
+              <i data-lucide="info" class="w-4 h-4"></i>
+              Crear Administrador de Sucursal
+            </h4>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Nombre del Admin</label>
+                <input type="text" id="nb-admin-name" placeholder="Nombre completo" class="w-full bg-zinc-800/80 border border-zinc-700/50 rounded-xl py-3 px-4 text-white placeholder-zinc-600 focus:border-indigo-400 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Email del Admin</label>
+                <input type="email" id="nb-admin-email" placeholder="admin@sucursal.com" class="w-full bg-zinc-800/80 border border-zinc-700/50 rounded-xl py-3 px-4 text-white placeholder-zinc-600 focus:border-indigo-400 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Contraseña</label>
+                <input type="password" id="nb-admin-pass" placeholder="••••••••" class="w-full bg-zinc-800/80 border border-zinc-700/50 rounded-xl py-3 px-4 text-white placeholder-zinc-600 focus:border-indigo-400 focus:outline-none">
+              </div>
+            </div>
+          </div>
+          
+          <button onclick="window.createBranch()" class="w-full bg-gold-500 hover:bg-gold-400 text-zinc-900 py-3 rounded-xl font-medium transition flex items-center justify-center gap-2">
+            <i data-lucide="check" class="w-5 h-5"></i> Crear Sucursal
+          </button>
+        </div>
+      `);
+    }
+    window.createBranch = async () => {
+      const name = document.getElementById('nb-branch').value.trim();
+      const location = document.getElementById('nb-loc').value.trim();
+      const phone = document.getElementById('nb-phone').value.trim();
+      
+      const adminName = document.getElementById('nb-admin-name').value.trim();
+      const adminEmail = document.getElementById('nb-admin-email').value.trim();
+      const adminPass = document.getElementById('nb-admin-pass').value;
+
+      if(!name || !location) return showToast('Nombre y ubicación de sucursal son requeridos', 'error');
+
+      try {
+        // 1. Creamos la sucursal en Firestore
+        const docRef = await addDoc(collection(db, "branches"), { 
+          branch_name: name, 
+          branch_location: location,
+          branch_phone: phone,
+          created_at: new Date().toISOString()
+        });
+
+        // 2. Nota: La creación de un usuario Auth (adminEmail/adminPass) desde el cliente 
+        // cerraría tu sesión actual. Si deseas que este formulario cree el admin real 
+        // necesitas usar Firebase Cloud Functions.
+        // Por ahora, lo guardaremos como un registro en "users" referenciando la sucursal.
+        if (adminName && adminEmail) {
+            await addDoc(collection(db, "users"), {
+                name: adminName,
+                email: adminEmail,
+                role: 'admin',
+                branch_id: docRef.id,
+                created_at: new Date().toISOString(),
+                nota: 'Usuario creado. Debe registrarse manualmente con este correo por seguridad.'
+            });
+        }
+
+        window.closeModal(); 
+        showToast('Sucursal creada exitosamente', 'success');
+      } catch(error) {
+        showToast('Error al crear sucursal', 'error');
+      }
+    }
+    // Modal para Editar Sucursal
+    window.showEditBranchModal = (id) => {
+      const branch = window.appData.branches.find(b => b.id === id || b.__backendId === id);
+      
+      if (!branch) {
+        showToast('Error: Sucursal no encontrada', 'error');
+        return;
+      }
+
+      window.showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="font-display text-2xl text-white tracking-wide uppercase">EDITAR SUCURSAL</h2>
+            <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+          
+          <div class="space-y-4 mb-6">
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Nombre de la Sucursal</label>
+              <input type="text" id="edit-branch-name" value="${branch.branch_name || ''}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Ubicación</label>
+              <input type="text" id="edit-branch-loc" value="${branch.branch_location || ''}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Teléfono</label>
+              <input type="tel" id="edit-branch-phone" value="${branch.branch_phone || ''}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+          </div>
+          
+          <button id="btn-update-branch" onclick="window.updateBranch('${id}')" class="w-full bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-xl font-medium transition flex items-center justify-center gap-2">
+            <i data-lucide="edit-2" class="w-5 h-5"></i> Guardar Cambios
+          </button>
+        </div>
+      `);
+    }
+
+    // Función para actualizar la Sucursal en Firebase
+    window.updateBranch = async (id) => {
+      const nameInput = document.getElementById('edit-branch-name');
+      const locInput = document.getElementById('edit-branch-loc');
+      const phoneInput = document.getElementById('edit-branch-phone');
+      const btn = document.getElementById('btn-update-branch');
+
+      if (!nameInput || !locInput) return;
+
+      const name = nameInput.value.trim();
+      const loc = locInput.value.trim();
+      const phone = phoneInput.value.trim();
+
+      if (!name || !loc) {
+         return showToast('El nombre y la ubicación son obligatorios', 'error');
+      }
+
+      try {
+        if (btn) btn.innerHTML = 'Guardando...';
+        
+        await updateDoc(doc(db, "branches", id), {
+            branch_name: name,
+            branch_location: loc,
+            branch_phone: phone
+        });
+        
+        window.closeModal();
+        showToast('Sucursal actualizada correctamente', 'success');
+      } catch (error) {
+        console.error(error);
+        if (btn) { btn.innerHTML = '<i data-lucide="edit-2" class="w-5 h-5"></i> Guardar Cambios'; lucide.createIcons(); }
+        alert("Error de Firebase al actualizar: " + error.message);
+      }
+    }
+
+    // Función para cambiar de sucursal en el panel de Administrador
+    window.switchBranch = () => {
+      const branchId = document.getElementById('branch-selector').value;
+      if (branchId === 'main') {
+        window.currentBranch = { __backendId: 'main', name: 'Sucursal Principal' };
+      } else {
+        const branchData = window.appData.branches.find(b => (b.id || b.__backendId) === branchId);
+        if (branchData) {
+          window.currentBranch = branchData;
+        }
+      }
+      renderCurrentView(); // Recarga la vista con los datos de la nueva sucursal
+    }
+
+    // --- VENTAS DE HOY (ADMIN) ---
+    // --- VENTAS DIARIAS (ADMIN) ---
+    function renderDailySalesAdmin() {
+      // 1. Manejar la fecha seleccionada. Si no hay una elegida, usamos la de "hoy"
+      if (!window.adminSalesDate) {
+        const now = new Date();
+        window.adminSalesDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      }
+      const targetDate = window.adminSalesDate;
+
+      // 2. Filtrar SOLO las ventas completadas de la fecha seleccionada
+      let daySales = window.appData.appointments.filter(a => a.date === targetDate && a.status === 'completed');
+
+      // 3. Filtrar por sucursal si el admin ha seleccionado una
+      if (window.currentBranch && window.currentBranch.__backendId !== 'main') {
+        daySales = daySales.filter(a => a.branch_id === window.currentBranch.__backendId);
+      }
+
+      // Ordenar desde la más reciente a la más antigua
+      daySales.sort((a, b) => b.time.localeCompare(a.time));
+
+      const activeServices = window.appData.services;
+      const barbers = window.appData.barbers;
+      const branches = window.appData.branches;
+
+      let totalRevenue = 0;
+
+      // 4. Crear las filas de la tabla
+      const rows = daySales.map(apt => {
+        const s = activeServices.find(ser => (ser.id || ser.__backendId) === apt.service_name) || {name: 'Servicio Borrado', price: 0};
+        const b = barbers.find(bar => (bar.id || bar.__backendId) === apt.barber_id) || {name: 'Barbero Borrado'};
+        const branch = branches.find(br => (br.id || br.__backendId) === apt.branch_id) || {branch_name: 'Principal'};
+        
+        totalRevenue += Number(s.price);
+        const isWalkIn = apt.client_id === 'walk-in';
+
+        return `
+          <tr class="text-white border-b border-zinc-700/50 hover:bg-zinc-800/50 transition">
+            <td class="py-4 px-6 font-display text-xl text-gold-400" data-label="Hora">${apt.time}</td>
+            <td class="py-4 px-6" data-label="Cliente">
+                <p class="font-medium">${apt.notes || 'Cliente'}</p>
+                ${isWalkIn 
+                  ? '<span class="text-[10px] text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded uppercase tracking-wider font-bold">Venta Directa</span>' 
+                  : '<span class="text-[10px] text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded uppercase tracking-wider font-bold">Por Cita</span>'}
+            </td>
+            <td class="py-4 px-6" data-label="Servicio">
+              ${s.name} <br> <span class="text-gold-400 font-bold">${s.price}$</span>
+            </td>
+            <td class="py-4 px-6 text-zinc-300" data-label="Barbero">
+              <i data-lucide="scissors" class="w-3 h-3 inline mr-1 text-zinc-500"></i>${b.name}
+            </td>
+            <td class="py-4 px-6 text-zinc-400 text-sm" data-label="Sucursal">${branch.branch_name}</td>
+            <td class="py-4 px-6 text-right" data-label="Acciones">
+                <button onclick="window.showEditSaleModal('${apt.id || apt.__backendId}')" class="text-zinc-400 hover:text-white bg-zinc-800 p-2 rounded-lg transition mr-1" title="Editar Venta">
+                  <i data-lucide="edit-2" class="w-4 h-4"></i>
+                </button>
+                <button onclick="window.deleteSale('${apt.id || apt.__backendId}')" class="text-zinc-400 hover:text-red-400 bg-zinc-800 p-2 rounded-lg transition" title="Eliminar Venta">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-6">
+            <div>
+                <h1 class="font-display text-3xl lg:text-4xl text-white uppercase tracking-wide">REGISTRO DE VENTAS</h1>
+                <p class="text-zinc-400 mb-4">Navega para ver, editar o eliminar ventas de días anteriores</p>
+                
+                <div class="flex items-center gap-2 bg-zinc-800/80 p-2 rounded-xl inline-flex border border-zinc-700/50">
+                  <button onclick="window.changeSalesDate(-1)" class="p-2 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded-lg transition" title="Día Anterior">
+                    <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                  </button>
+                  <input type="date" id="admin-sales-date" value="${targetDate}" onchange="window.updateSalesDateFromInput()" class="bg-transparent text-white font-medium focus:outline-none cursor-pointer [color-scheme:dark] px-2">
+                  <button onclick="window.changeSalesDate(1)" class="p-2 text-zinc-400 hover:text-white hover:bg-zinc-700 rounded-lg transition" title="Día Siguiente">
+                    <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                  </button>
+                </div>
+                
+            </div>
+            <div class="bg-gold-400/10 border border-gold-400/30 px-6 py-4 rounded-2xl flex items-center gap-4 min-w-[250px]">
+                <div class="w-12 h-12 gradient-gold rounded-xl flex items-center justify-center shadow-lg shadow-gold-500/20 flex-shrink-0">
+                  <i data-lucide="banknote" class="w-6 h-6 text-zinc-900"></i>
+                </div>
+                <div>
+                  <p class="text-xs text-gold-400 uppercase tracking-widest font-bold">Total del Día</p>
+                  <p class="font-display text-4xl text-gold-400">${totalRevenue}$</p>
+                </div>
+            </div>
+          </div>
+          
+          <div class="glass rounded-3xl overflow-hidden border border-zinc-700/50 shadow-2xl">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left responsive-table min-w-[900px]">
+                  <thead class="bg-zinc-800/80 text-gold-400 text-xs uppercase tracking-widest">
+                    <tr>
+                      <th class="px-6 py-4">Hora</th>
+                      <th class="px-6 py-4">Cliente / Origen</th>
+                      <th class="px-6 py-4">Servicio / Ingreso</th>
+                      <th class="px-6 py-4">Barbero</th>
+                      <th class="px-6 py-4">Sucursal</th>
+                      <th class="px-6 py-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-zinc-700/30">
+                    ${daySales.length > 0 ? rows : `<tr><td colspan="6" class="text-center py-12 text-zinc-500"><i data-lucide="calendar-x" class="w-12 h-12 mx-auto mb-3 opacity-20"></i>No hay ventas registradas en esta fecha</td></tr>`}
+                  </tbody>
+                </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Cambiar la fecha leyendo el calendario nativo del navegador
+    window.updateSalesDateFromInput = () => {
+        window.adminSalesDate = document.getElementById('admin-sales-date').value;
+        renderCurrentView(); 
+    }
+
+    // Cambiar la fecha usando las flechitas (< y >)
+    window.changeSalesDate = (days) => {
+        if (!window.adminSalesDate) return;
+        // Ponemos hora 12:00:00 para evitar que la zona horaria nos atrase un día
+        const currentDate = new Date(window.adminSalesDate + 'T12:00:00'); 
+        currentDate.setDate(currentDate.getDate() + days);
+        
+        window.adminSalesDate = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+        renderCurrentView();
+    }
+
+    // Modal para editar los datos de una venta
+    window.showEditSaleModal = (id) => {
+        const sale = window.appData.appointments.find(a => (a.id || a.__backendId) === id);
+        if(!sale) return;
+
+        const activeServices = window.appData.services;
+        const barbers = window.appData.barbers;
+
+        window.showModal(`
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="font-display text-2xl text-white tracking-wide uppercase">CORREGIR VENTA</h2>
+                    <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                
+                <div class="space-y-4 mb-6">
+                    <div>
+                        <label class="block text-sm text-zinc-400 mb-2">Nombre del Cliente / Nota</label>
+                        <input type="text" id="esale-notes" value="${sale.notes || ''}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-zinc-400 mb-2">Servicio Realizado</label>
+                        <select id="esale-service" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none appearance-none">
+                            ${activeServices.map(s => {
+                                const sId = s.id || s.__backendId;
+                                return `<option value="${sId}" ${sale.service_name === sId ? 'selected' : ''}>${s.name} (${s.price}$)</option>`;
+                            }).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-zinc-400 mb-2">Barbero que hizo el corte</label>
+                        <select id="esale-barber" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none appearance-none">
+                            ${barbers.map(b => {
+                                const bId = b.id || b.__backendId;
+                                return `<option value="${bId}" ${sale.barber_id === bId ? 'selected' : ''}>${b.name}</option>`;
+                            }).join('')}
+                        </select>
+                    </div>
+                </div>
+                
+                <button onclick="window.updateSale('${id}')" class="w-full bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-xl font-medium transition flex items-center justify-center gap-2">
+                    <i data-lucide="save" class="w-5 h-5"></i> Guardar Corrección
+                </button>
+            </div>
+        `);
+    }
+
+    // Lógica para enviar los datos corregidos a Firebase
+    window.updateSale = async (id) => {
+        const notes = document.getElementById('esale-notes').value.trim();
+        const serviceId = document.getElementById('esale-service').value;
+        const barberId = document.getElementById('esale-barber').value;
+
+        try {
+            await updateDoc(doc(db, "appointments", id), {
+                notes: notes,
+                service_name: serviceId,
+                barber_id: barberId
+            });
+            window.closeModal();
+            showToast('Venta actualizada. Los ingresos se han recalculado.', 'success');
+        } catch(e) {
+            showToast('Error al actualizar venta', 'error');
+        }
+    };
+
+    // Lógica para anular un cobro cobrado por error
+    window.deleteSale = async (id) => {
+        if(confirm('¿Estás seguro de ELIMINAR esta venta?\n\nAl borrarla, se restará este dinero de tus ingresos del día y de tus estadísticas globales. Esta acción no se puede deshacer.')) {
+            try {
+                await deleteDoc(doc(db, "appointments", id));
+                showToast('Venta eliminada. Finanzas recalculadas.', 'success');
+            } catch(e) {
+                showToast('Error al eliminar', 'error');
+            }
+        }
+    };
+
+    // --- RECORDATORIOS POR WHATSAPP ---
+    window.sendWhatsAppReminder = (clientId, time, barberId, isWalkIn) => {
+      if (isWalkIn) {
+        return showToast('No se puede enviar WhatsApp a una venta directa sin registro.', 'warning');
+      }
+
+      // Buscar al cliente en la base de datos
+      const client = window.appData.users.find(u => (u.id || u.__backendId) === clientId);
+      const barber = window.appData.barbers.find(b => (b.id || b.__backendId) === barberId);
+
+      if (!client || !client.phone) {
+        return showToast('Este cliente no registró su número de teléfono.', 'error');
+      }
+
+      // Limpiar el número de teléfono (quitar espacios, guiones, etc.)
+      let phone = client.phone.replace(/[^0-9+]/g, '');
+      
+      // Si el número no tiene el código de país (ej. México +52), se lo puedes forzar aquí si lo deseas
+      // if (!phone.startsWith('+')) phone = '+52' + phone; 
+
+      const barberName = barber ? barber.name : 'tu barbero';
+      const clientName = client.name.split(' ')[0]; // Solo el primer nombre
+
+      // El mensaje predefinido
+      const message = `¡Hola ${clientName}! 💈 Te escribimos de BarberPro para recordarte tu cita programada para HOY a las ${time} con ${barberName}. ¡Te esperamos!`;
+      
+      // Codificar el texto para que funcione en una URL
+      const encodedMessage = encodeURIComponent(message);
+
+      // Abrir WhatsApp en una nueva pestaña
+      window.open(`https://wa.me/${phone}?text=${encodedMessage}`, '_blank');
+    }
+
+    // UTILITIES
+    window.showModal = (content) => { document.getElementById('modal-content').innerHTML = content; document.getElementById('modal-container').classList.remove('hidden'); lucide.createIcons(); }
+    window.closeModal = () => { document.getElementById('modal-container').classList.add('hidden'); }
+    
+    window.showToast = (message, type = 'info') => {
+      const container = document.getElementById('toast-container');
+      const t = document.createElement('div');
+      t.className = `px-4 py-3 rounded-xl flex items-center gap-2 text-white shadow-lg fade-in ${type==='success'?'bg-green-500':type==='error'?'bg-red-500':'bg-blue-500'}`;
+      t.innerHTML = `<span>${message}</span>`;
+      container.appendChild(t);
+      setTimeout(() => { t.style.opacity = '0'; setTimeout(()=>t.remove(), 300); }, 3000);
+    }
+    
+    function formatDate(dateStr) {
+      if(!dateStr) return '';
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+    }
+    function getStatusColor(s) { return { pending:'bg-yellow-500/20 text-yellow-400', confirmed:'bg-blue-500/20 text-blue-400', completed:'bg-green-500/20 text-green-400', cancelled:'bg-red-500/20 text-red-400' }[s]||'bg-zinc-500/20 text-zinc-400'; }
+    function getStatusLabel(s) { return { pending:'Pendiente', confirmed:'Confirmada', completed:'Completada', cancelled:'Cancelada' }[s]||s; }
+
+    // --- VENTA DIRECTA (WALK-IN) ---
+    function renderWalkIn() {
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : [];
+      
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8">
+            <h1 class="font-display text-3xl lg:text-4xl text-white mb-2">VENTA DIRECTA</h1>
+            <p class="text-zinc-400">Registra un cliente que llegó sin cita. Se guardará como completado al instante.</p>
+          </div>
+          
+          <div class="max-w-2xl">
+            <div class="glass rounded-2xl p-6 lg:p-8 border border-gold-400/20">
+              <div class="space-y-8">
+                
+                <div>
+                  <label class="block text-sm font-bold text-gold-400 mb-3">1. NOMBRE DEL CLIENTE (Opcional)</label>
+                  <div class="relative">
+                    <i data-lucide="user" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"></i>
+                    <input type="text" id="walkin-name" placeholder="Ej: Cliente de paso" class="w-full bg-zinc-800/50 border border-zinc-700 rounded-xl py-4 pl-12 pr-4 text-white focus:border-gold-400 focus:outline-none transition">
+                  </div>
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-bold text-gold-400 mb-3">2. SERVICIO REALIZADO</label>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                    ${activeServices.length > 0 ? activeServices.map(service => `
+                      <label class="cursor-pointer">
+                        <input type="radio" name="walkin-service" value="${service.id || service.__backendId}" class="peer hidden">
+                        <div class="bg-zinc-800/50 peer-checked:bg-gold-400/20 peer-checked:border-gold-400 border border-zinc-700 rounded-xl p-4 transition hover:bg-zinc-700/50">
+                          <div class="flex items-center justify-between">
+                            <p class="font-medium text-white">${service.name}</p>
+                            <span class="font-display text-xl text-gold-400">${service.price}$</span>
+                          </div>
+                        </div>
+                      </label>
+                    `).join('') : '<p class="text-zinc-500 text-sm">No hay servicios disponibles.</p>'}
+                  </div>
+                </div>
+                
+                <div class="pt-4">
+                  <button onclick="window.registerWalkIn()" id="btn-walkin" class="w-full gradient-gold text-zinc-900 font-bold py-4 rounded-xl hover:opacity-90 transition flex items-center justify-center gap-2 shadow-lg shadow-gold-500/20">
+                    <i data-lucide="check-circle" class="w-6 h-6"></i>
+                    <span class="text-lg">Registrar y Cobrar Venta</span>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    window.registerWalkIn = async () => {
+      const nameInput = document.getElementById('walkin-name').value.trim();
+      const clientName = nameInput || 'Cliente de paso'; // Si no pone nombre, le asigna este.
+      const serviceInput = document.querySelector('input[name="walkin-service"]:checked');
+      const btn = document.getElementById('btn-walkin');
+
+      if (!serviceInput) {
+        return showToast('Debes seleccionar un servicio para registrar la venta.', 'error');
+      }
+      
+      const serviceId = serviceInput.value;
+      
+      // Generar fecha y hora actual automáticamente
+      const now = new Date();
+      // Formato YYYY-MM-DD local
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      // Formato HH:MM local
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      try {
+        if(btn) btn.innerHTML = 'Registrando...';
+        
+        await addDoc(collection(db, "appointments"), {
+          service_name: serviceId,
+          barber_id: window.currentUser.barber_id || window.currentUser.id, // El barbero actual
+          client_id: 'walk-in', // ID genérico para identificar que no lo agendó un cliente registrado
+          branch_id: window.currentUser.branch_id || 'main', // Se suma a la sucursal actual
+          date: dateStr,
+          time: timeStr,
+          status: 'completed', // ¡NÚCLEO DE LA FUNCIÓN! Se guarda ya completada para las estadísticas.
+          notes: clientName,
+          created_at: now.toISOString()
+        });
+        
+        showToast('¡Venta registrada con éxito!', 'success');
+        
+        // Lo mandamos a sus citas de hoy para que vea su venta recién agregada a la lista
+        window.navigateTo('today'); 
+      } catch (error) {
+        console.error("Error registrando venta directa:", error);
+        showToast('Error al registrar la venta', 'error');
+        if(btn) { 
+           btn.innerHTML = '<i data-lucide="check-circle" class="w-6 h-6"></i><span class="text-lg">Registrar y Cobrar Venta</span>'; 
+           lucide.createIcons(); 
+        }
+      }
+    }
+
+  </script>
+ </body>
+</html>
