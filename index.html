@@ -249,6 +249,37 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
+    // =======================================================
+    // SINCRONIZADOR GLOBAL DE MARCA BLANCA (Para nuevos dispositivos)
+    // =======================================================
+    (async function syncGlobalBranding() {
+        try {
+            // Buscamos la configuración en la nube de Firebase
+            const snap = await getDocs(collection(db, "branding"));
+            
+            if (!snap.empty) {
+                const cloudBrand = snap.docs[0].data();
+                const cloudId = snap.docs[0].id;
+                
+                // Leemos lo que tiene guardado este dispositivo actualmente
+                const localBrand = JSON.parse(localStorage.getItem('barber_branding') || '{}');
+                
+                // Si el dispositivo es nuevo o la nube tiene un diseño más reciente...
+                if (cloudBrand.updated_at && cloudBrand.updated_at !== localBrand.updated_at) {
+                    
+                    // Guardamos el nuevo diseño en este dispositivo
+                    localStorage.setItem('barber_branding', JSON.stringify(cloudBrand));
+                    localStorage.setItem('barber_branding_id', cloudId);
+                    
+                    // Recargamos la página silenciosamente (1 sola vez) para inyectar los colores
+                    window.location.reload(); 
+                }
+            }
+        } catch (error) {
+            console.log("Aviso: El sincronizador de diseño está en espera.", error);
+        }
+    })();
+
     // =============================================
     // APPLICATION STATE
     // =============================================
