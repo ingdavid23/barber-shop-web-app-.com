@@ -160,7 +160,11 @@
          <div>
           <label class="block text-sm text-zinc-400 mb-2">Contraseña</label>
           <div class="relative">
-           <i data-lucide="lock" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"></i> <input type="password" id="login-password" placeholder="••••••••" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-zinc-500 focus:border-gold-400 focus:outline-none transition">
+           <i data-lucide="lock" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"></i> 
+           <input type="password" id="login-password" placeholder="••••••••" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-11 pr-12 text-white placeholder-zinc-500 focus:border-gold-400 focus:outline-none transition">
+           <button type="button" onclick="window.togglePasswordVisibility('login-password', 'eye-icon-login')" class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition focus:outline-none" id="eye-icon-login">
+               <i data-lucide="eye" class="w-5 h-5"></i>
+           </button>
           </div>
          </div>
          <button onclick="handleLogin()" class="w-full gradient-gold text-zinc-900 font-semibold py-3 rounded-xl hover:opacity-90 transition flex items-center justify-center gap-2"> <span>Entrar</span> <i data-lucide="arrow-right" class="w-5 h-5"></i> </button>
@@ -195,7 +199,11 @@
          <div>
           <label class="block text-sm text-zinc-400 mb-2">Contraseña</label>
           <div class="relative">
-           <i data-lucide="lock" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"></i> <input type="password" id="register-password" placeholder="••••••••" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-zinc-500 focus:border-gold-400 focus:outline-none transition">
+           <i data-lucide="lock" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500"></i> 
+           <input type="password" id="register-password" placeholder="••••••••" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-11 pr-12 text-white placeholder-zinc-500 focus:border-gold-400 focus:outline-none transition">
+           <button type="button" onclick="window.togglePasswordVisibility('register-password', 'eye-icon-register')" class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition focus:outline-none" id="eye-icon-register">
+               <i data-lucide="eye" class="w-5 h-5"></i>
+           </button>
           </div>
          </div>
          <button onclick="handleRegister()" class="w-full gradient-gold text-zinc-900 font-semibold py-3 rounded-xl hover:opacity-90 transition flex items-center justify-center gap-2"> <span>Crear Cuenta</span> <i data-lucide="user-plus" class="w-5 h-5"></i> </button>
@@ -3161,6 +3169,76 @@ function renderBranches() {
         window.closeModal(); showToast('Barbero actualizado', 'success');
       } catch (error) { showToast('Error al actualizar', 'error'); }
     }
+
+    // ==========================================
+    // --- CREAR NUEVA SUCURSAL ---
+    // ==========================================
+    window.showAddBranchModal = () => {
+      window.showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="font-display text-2xl text-white tracking-wide uppercase">NUEVA SUCURSAL</h2>
+            <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+          
+          <div class="space-y-4 mb-6">
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Nombre de la Sucursal</label>
+              <input type="text" id="nb-branch-name" placeholder="Ej: Sucursal Centro" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Ubicación</label>
+              <input type="text" id="nb-branch-loc" placeholder="Ej: Av. Principal #123" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Teléfono</label>
+              <input type="tel" id="nb-branch-phone" placeholder="Ej: 555-123-4567" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+          </div>
+          
+          <button id="btn-save-new-branch" onclick="window.saveNewBranch()" class="w-full gradient-gold text-zinc-900 py-3 rounded-xl font-bold hover:opacity-90 transition flex items-center justify-center gap-2 shadow-lg">
+            <i data-lucide="save" class="w-5 h-5"></i> Guardar Sucursal
+          </button>
+        </div>
+      `);
+    };
+
+    window.saveNewBranch = async () => {
+      const nameInput = document.getElementById('nb-branch-name');
+      const locInput = document.getElementById('nb-branch-loc');
+      const phoneInput = document.getElementById('nb-branch-phone');
+      const btn = document.getElementById('btn-save-new-branch');
+
+      if (!nameInput || !locInput) return;
+
+      const name = nameInput.value.trim();
+      const loc = locInput.value.trim();
+      const phone = phoneInput.value.trim();
+
+      if (!name || !loc) {
+         return showToast('El nombre y la ubicación son obligatorios', 'error');
+      }
+
+      try {
+        if (btn) btn.innerHTML = 'Guardando...';
+        
+        await addDoc(collection(db, "branches"), {
+            branch_name: name,
+            branch_location: loc,
+            branch_phone: phone,
+            created_at: new Date().toISOString()
+        });
+        
+        window.closeModal();
+        showToast('Sucursal creada exitosamente', 'success');
+      } catch (error) {
+        console.error(error);
+        if (btn) { btn.innerHTML = '<i data-lucide="save" class="w-5 h-5"></i> Guardar Sucursal'; lucide.createIcons(); }
+        showToast("Error al guardar la sucursal", 'error');
+      }
+    };
     // Modal para Editar Sucursal
     window.showEditBranchModal = (id) => {
       const branch = window.appData.branches.find(b => b.id === id || b.__backendId === id);
@@ -4372,6 +4450,27 @@ function renderBranches() {
         }
       }
     }
+
+    // ==========================================
+    // --- MOSTRAR/OCULTAR CONTRASEÑA ---
+    // ==========================================
+    window.togglePasswordVisibility = (inputId, buttonId) => {
+        const input = document.getElementById(inputId);
+        const iconContainer = document.getElementById(buttonId);
+        
+        if (!input || !iconContainer) return;
+
+        if (input.type === 'password') {
+            input.type = 'text';
+            iconContainer.innerHTML = '<i data-lucide="eye-off" class="w-5 h-5"></i>';
+        } else {
+            input.type = 'password';
+            iconContainer.innerHTML = '<i data-lucide="eye" class="w-5 h-5"></i>';
+        }
+        
+        // Recargamos los íconos de Lucide para que se vea el cambio
+        lucide.createIcons();
+    };
 
   </script>
  </body>
