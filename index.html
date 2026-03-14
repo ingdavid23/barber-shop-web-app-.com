@@ -1224,24 +1224,34 @@ onAuthStateChanged(auth, async (user) => {
       `;
     }
     // --- CLIENT VIEWS ---
-    // --- CLIENT VIEWS ---
-   // --- CLIENT VIEWS ---
-   function renderServices() {
-      const activeServices = window.appData.services || [];
-      
-      // Construimos el HTML de forma blindada (sin comillas invertidas conflictivas)
-      const servicesHtml = activeServices.length > 0 ? activeServices.map(service => {
-          return '<div class="glass rounded-2xl p-5 md:p-6 hover:bg-gold-400/5 transition group flex flex-col h-full shadow-sm border border-transparent hover:border-gold-400/20"><div class="flex items-start justify-between mb-4 gap-4"><div class="w-12 h-12 md:w-14 md:h-14 gradient-gold rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition transform shadow-lg"><i data-lucide="scissors" class="w-6 h-6 md:w-7 md:h-7 text-zinc-900"></i></div><div class="text-right"><p class="font-display text-3xl md:text-4xl text-gold-400">$' + service.price + '</p><p class="text-xs text-zinc-500 font-medium tracking-wide flex items-center justify-end gap-1"><i data-lucide="clock" class="w-3 h-3"></i> ' + service.duration + ' min</p></div></div><h3 class="font-display text-xl md:text-2xl text-white mb-2">' + service.name + '</h3><p class="text-zinc-400 text-sm mb-6 flex-1">' + (service.description || '') + '</p><button onclick="window.startBooking(\'' + (service.id || service.__backendId) + '\')" class="w-full bg-zinc-800 hover:bg-gold-400 text-white hover:text-zinc-900 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 border border-zinc-700 hover:border-gold-400"><i data-lucide="calendar-plus" class="w-5 h-5"></i> Reservar</button></div>';
-      }).join('') : '<div class="col-span-1 sm:col-span-2 lg:col-span-3 text-center py-16 bg-zinc-800/30 rounded-3xl border border-zinc-700/50"><i data-lucide="scissors" class="w-16 h-16 text-zinc-600 mx-auto mb-4 opacity-30"></i><p class="text-zinc-300 text-xl font-medium">Próximamente agregaremos nuestros servicios.</p></div>';
-
+    function renderServices() {
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
       return `
-        <div class="p-4 md:p-6 lg:p-8 fade-in">
-          <div class="mb-6 md:mb-8 text-center md:text-left">
-            <h1 class="font-display text-3xl md:text-4xl text-white mb-2">NUESTROS SERVICIOS</h1>
-            <p class="text-zinc-400 text-sm md:text-base">Descubre todo lo que ofrecemos para tu estilo</p>
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="mb-8">
+            <h1 class="font-display text-3xl lg:text-4xl text-white mb-2">NUESTROS SERVICIOS</h1>
+            <p class="text-zinc-400">Descubre todos los servicios que ofrecemos</p>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            ${servicesHtml}
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            ${activeServices.map(service => `
+              <div class="glass rounded-2xl p-6 hover:bg-gold-400/5 transition group">
+                <div class="flex items-start justify-between mb-4">
+                  <div class="w-14 h-14 gradient-gold rounded-xl flex items-center justify-center group-hover:scale-110 transition">
+                    <i data-lucide="scissors" class="w-7 h-7 text-zinc-900"></i>
+                  </div>
+                  <div class="text-right">
+                    <p class="font-display text-3xl text-gold-400">${service.price}$</p>
+                    <p class="text-xs text-zinc-500">${service.duration} min</p>
+                  </div>
+                </div>
+                <h3 class="font-display text-xl text-white mb-2">${service.name}</h3>
+                <p class="text-zinc-400 text-sm mb-4">${service.description}</p>
+                <button onclick="window.startBooking('${service.id}')" class="w-full bg-zinc-700 hover:bg-gold-400 text-white hover:text-zinc-900 py-2 rounded-lg font-medium transition">
+                  Reservar
+                </button>
+              </div>
+            `).join('')}
           </div>
         </div>
       `;
@@ -2144,90 +2154,106 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     // --- ADMIN VIEWS ---
-    // --- ADMIN VIEWS ---
-    function renderAllAppointments() {
-      const appointments = window.appData.appointments || [];
-      const services = window.appData.services || [];
-      const barbers = window.appData.barbers || [];
-
-      // Ordenamos por fecha y hora clonando el array para no dañar Firebase
-      const allAppts = [...appointments].sort((a,b) => {
-          const dateA = new Date((a.date || '2000-01-01') + 'T' + (a.time || '00:00'));
-          const dateB = new Date((b.date || '2000-01-01') + 'T' + (b.time || '00:00'));
+   // --- ADMIN VIEWS ---
+   function renderAllAppointments() {
+      // Ordenamos por fecha y hora (más recientes primero)
+      const allAppts = window.appData.appointments.sort((a,b) => {
+          const dateA = new Date(a.date + 'T' + (a.time || '00:00'));
+          const dateB = new Date(b.date + 'T' + (b.time || '00:00'));
           return dateB - dateA;
       });
-
-      // HTML Blindado para Computadora
-      const desktopRows = allAppts.map(apt => {
-          const s = services.find(ser => (ser.id || ser.__backendId) === apt.service_name) || {name: 'Servicio eliminado'};
-          const b = barbers.find(bar => (bar.id || bar.__backendId) === apt.barber_id) || {name: 'No asignado'};
-          const clientName = apt.notes || 'Cliente';
-          const isWalkIn = apt.client_id === 'walk-in';
-          const badgeHtml = isWalkIn ? '<span class="text-[10px] text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded uppercase tracking-wider font-bold ml-2">Directo</span>' : '';
-          
-          return '<tr class="text-white hover:bg-zinc-800/30 transition"><td class="py-4 px-4"><div class="font-medium">' + formatDate(apt.date) + '</div><div class="text-xs text-gold-400 mt-1 font-bold tracking-widest"><i data-lucide="clock" class="w-3 h-3 inline mr-1"></i>' + (apt.time || '--:--') + '</div></td><td class="py-4 px-4 font-medium">' + clientName + ' ' + badgeHtml + '</td><td class="py-4 px-4 text-zinc-300">' + s.name + '</td><td class="py-4 px-4 text-zinc-400"><i data-lucide="user" class="w-3 h-3 inline mr-1"></i>' + b.name + '</td><td class="py-4 px-4 text-right"><span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ' + getStatusColor(apt.status) + '">' + getStatusLabel(apt.status) + '</span></td></tr>';
-      }).join('');
-
-      // HTML Blindado para Celulares (Tarjetas)
-      const mobileCards = allAppts.map(apt => {
-          const s = services.find(ser => (ser.id || ser.__backendId) === apt.service_name) || {name: 'Servicio eliminado'};
-          const b = barbers.find(bar => (bar.id || bar.__backendId) === apt.barber_id) || {name: 'No asignado'};
-          const clientName = apt.notes || 'Cliente';
-          const isWalkIn = apt.client_id === 'walk-in';
-          const badgeHtml = isWalkIn ? '<span class="text-purple-400 text-[10px] bg-purple-500/20 px-1.5 py-0.5 rounded ml-1 uppercase font-bold tracking-widest align-middle">Directo</span>' : '';
-          
-          return '<div class="bg-zinc-800/60 border border-zinc-700/50 p-4 rounded-xl relative hover:border-gold-400/30 transition shadow-sm"><div class="flex justify-between items-start mb-3"><div><p class="font-display text-2xl text-gold-400 leading-none">' + (apt.time || '--:--') + '</p><p class="text-xs text-zinc-400 mt-1"><i data-lucide="calendar" class="w-3 h-3 inline mr-1"></i>' + formatDate(apt.date) + '</p></div><span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ' + getStatusColor(apt.status) + '">' + getStatusLabel(apt.status) + '</span></div><div class="mb-4"><p class="text-white font-medium text-lg leading-tight">' + clientName + ' ' + badgeHtml + '</p><p class="text-sm text-zinc-300 mt-1">' + s.name + '</p></div><div class="pt-3 border-t border-zinc-700/50 flex justify-between items-center text-xs text-zinc-400 font-medium"><span class="flex items-center gap-1"><i data-lucide="scissors" class="w-3 h-3 text-zinc-500"></i> BarberPro</span><span class="flex items-center gap-1"><i data-lucide="user" class="w-3 h-3 text-zinc-500"></i> ' + b.name + '</span></div></div>';
-      }).join('');
-
+      
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : window.defaultServicesFallback || [];
+      const barbers = window.appData.barbers.length > 0 ? window.appData.barbers : window.defaultBarbersFallback || [];
+      
       return `
         <div class="p-4 md:p-6 lg:p-8 fade-in">
           <div class="mb-6 md:mb-8">
             <h1 class="font-display text-3xl md:text-4xl text-white uppercase tracking-wide">TODAS LAS CITAS</h1>
-            <p class="text-zinc-400 mt-1">Historial completo de reservas y ventas</p>
+            <p class="text-zinc-400 mt-1">Historial completo de todas las reservas y ventas</p>
           </div>
+          
           <div class="glass rounded-2xl p-4 md:p-6">
             ${allAppts.length > 0 ? `
+              
               <div class="hidden md:block overflow-x-auto">
                 <table class="w-full text-left min-w-[800px]">
                   <thead class="text-zinc-400 border-b border-zinc-700 text-xs uppercase tracking-widest">
-                    <tr><th class="pb-4 px-4 font-medium">Fecha y Hora</th><th class="pb-4 px-4 font-medium">Cliente</th><th class="pb-4 px-4 font-medium">Servicio</th><th class="pb-4 px-4 font-medium">Barbero</th><th class="pb-4 px-4 font-medium text-right">Estado</th></tr>
+                    <tr>
+                      <th class="pb-4 px-4 font-medium">Fecha y Hora</th>
+                      <th class="pb-4 px-4 font-medium">Cliente</th>
+                      <th class="pb-4 px-4 font-medium">Servicio</th>
+                      <th class="pb-4 px-4 font-medium">Barbero</th>
+                      <th class="pb-4 px-4 font-medium text-right">Estado</th>
+                    </tr>
                   </thead>
-                  <tbody class="divide-y divide-zinc-700/50">${desktopRows}</tbody>
+                  <tbody class="divide-y divide-zinc-700/50">
+                    ${allAppts.map(apt => {
+                      const s = activeServices.find(ser => (ser.id || ser.__backendId) === apt.service_name) || {name: 'Servicio eliminado'};
+                      const b = barbers.find(bar => (bar.id || bar.__backendId) === apt.barber_id) || {name: 'No asignado'};
+                      const clientName = apt.client_id === 'walk-in' ? (apt.notes || 'Cliente Directo') : (apt.notes || 'Cliente');
+                      const isWalkIn = apt.client_id === 'walk-in';
+                      const badgeHtml = isWalkIn ? '<span class="text-[10px] text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded uppercase tracking-wider font-bold ml-2">Directo</span>' : '';
+                      
+                      return `
+                      <tr class="text-white hover:bg-zinc-800/30 transition">
+                        <td class="py-4 px-4">
+                            <div class="font-medium">${formatDate(apt.date)}</div>
+                            <div class="text-xs text-gold-400 mt-1 font-bold tracking-widest"><i data-lucide="clock" class="w-3 h-3 inline mr-1"></i>${apt.time}</div>
+                        </td>
+                        <td class="py-4 px-4 font-medium">${clientName} ${badgeHtml}</td>
+                        <td class="py-4 px-4 text-zinc-300">${s.name}</td>
+                        <td class="py-4 px-4 text-zinc-400"><i data-lucide="user" class="w-3 h-3 inline mr-1"></i>${b.name}</td>
+                        <td class="py-4 px-4 text-right"><span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${getStatusColor(apt.status)}">${getStatusLabel(apt.status)}</span></td>
+                      </tr>`;
+                    }).join('')}
+                  </tbody>
                 </table>
               </div>
-              <div class="md:hidden space-y-4">${mobileCards}</div>
-            ` : `<div class="text-center py-12 text-zinc-500"><i data-lucide="calendar-x" class="w-12 h-12 mx-auto mb-3 opacity-30"></i><p>No hay citas ni ventas registradas.</p></div>`}
+              
+              <div class="md:hidden space-y-4">
+                ${allAppts.map(apt => {
+                  const s = activeServices.find(ser => (ser.id || ser.__backendId) === apt.service_name) || {name: 'Servicio eliminado'};
+                  const b = barbers.find(bar => (bar.id || bar.__backendId) === apt.barber_id) || {name: 'No asignado'};
+                  const clientName = apt.client_id === 'walk-in' ? (apt.notes || 'Cliente Directo') : (apt.notes || 'Cliente');
+                  const isWalkIn = apt.client_id === 'walk-in';
+                  
+                  return `
+                    <div class="bg-zinc-800/60 border border-zinc-700/50 p-4 rounded-xl relative hover:border-gold-400/30 transition shadow-sm">
+                      <div class="flex justify-between items-start mb-3">
+                        <div>
+                          <p class="font-display text-2xl text-gold-400 leading-none">${apt.time}</p>
+                          <p class="text-xs text-zinc-400 mt-1"><i data-lucide="calendar" class="w-3 h-3 inline mr-1"></i>${formatDate(apt.date)}</p>
+                        </div>
+                        <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${getStatusColor(apt.status)}">${getStatusLabel(apt.status)}</span>
+                      </div>
+                      
+                      <div class="mb-4">
+                        <p class="text-white font-medium text-lg leading-tight">
+                            ${clientName} 
+                            ${isWalkIn ? '<span class="text-purple-400 text-[10px] bg-purple-500/20 px-1.5 py-0.5 rounded ml-1 uppercase font-bold tracking-widest align-middle">Directo</span>' : ''}
+                        </p>
+                        <p class="text-sm text-zinc-300 mt-1">${s.name}</p>
+                      </div>
+                      
+                      <div class="pt-3 border-t border-zinc-700/50 flex justify-between items-center text-xs text-zinc-400 font-medium">
+                        <span class="flex items-center gap-1"><i data-lucide="scissors" class="w-3 h-3 text-zinc-500"></i> BarberPro</span>
+                        <span class="flex items-center gap-1"><i data-lucide="user" class="w-3 h-3 text-zinc-500"></i> ${b.name}</span>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : `
+              <div class="text-center py-12 text-zinc-500">
+                <i data-lucide="calendar-x" class="w-12 h-12 mx-auto mb-3 opacity-30"></i>
+                <p>No hay citas ni ventas registradas en el sistema.</p>
+              </div>
+            `}
           </div>
         </div>
       `;
     }
-
-    function renderServicesAdmin() {
-      const services = window.appData.services || [];
-      
-      // HTML Blindado
-      const servicesHtml = services.length > 0 ? services.map(s => {
-          return '<div class="bg-zinc-800/80 hover:bg-zinc-700/80 p-5 rounded-2xl transition group border border-zinc-700/50 relative overflow-hidden flex flex-col h-full shadow-sm"><div class="flex justify-between items-start mb-4 gap-4"><div class="flex-1 pr-2"><p class="text-white font-bold text-xl md:text-2xl mb-1">' + s.name + '</p><p class="text-zinc-400 text-sm leading-snug">' + (s.description || 'Sin descripción') + '</p></div><p class="text-gold-400 font-display text-3xl shrink-0">$' + s.price + '</p></div><div class="mt-auto pt-4 border-t border-zinc-700/50 flex items-center justify-between"><p class="text-zinc-500 text-xs font-medium flex items-center gap-1 bg-zinc-900/50 px-2 py-1 rounded-md"><i data-lucide="clock" class="w-3 h-3"></i> ' + s.duration + ' min</p><div class="flex gap-2"><button onclick="window.showEditServiceModal(\'' + (s.id || s.__backendId) + '\')" class="text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-lg transition border border-transparent hover:border-zinc-600" title="Editar"><i data-lucide="edit-2" class="w-4 h-4"></i></button><button onclick="window.deleteService(\'' + (s.id || s.__backendId) + '\')" class="text-zinc-400 hover:text-red-400 bg-zinc-900 p-2 rounded-lg transition border border-transparent hover:border-red-900/50" title="Eliminar"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></div></div>';
-      }).join('') : '<div class="col-span-1 md:col-span-2 lg:col-span-3 text-center py-16 bg-zinc-800/30 rounded-3xl border border-zinc-700/50"><i data-lucide="scissors" class="w-16 h-16 text-zinc-600 mx-auto mb-4 opacity-50"></i><p class="text-zinc-300 text-xl font-medium">Aún no hay servicios registrados</p><p class="text-zinc-500 text-sm mt-2">Haz clic en "Añadir Servicio" para comenzar a armar tu catálogo.</p></div>';
-
-      return `
-        <div class="p-4 md:p-6 lg:p-8 fade-in">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-            <div>
-              <h1 class="font-display text-3xl md:text-4xl text-white tracking-wide uppercase">SERVICIOS</h1>
-              <p class="text-zinc-400 mt-1 text-sm md:text-base">Administra tu catálogo de cortes y precios</p>
-            </div>
-            <button onclick="window.showAddServiceModal()" class="gradient-gold text-zinc-900 px-5 py-3 rounded-xl font-bold transition hover:opacity-90 flex items-center justify-center gap-2 shadow-lg w-full sm:w-auto">
-              <i data-lucide="plus" class="w-5 h-5"></i> Añadir Servicio
-            </button>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            ${servicesHtml}
-          </div>
-        </div>
-      `;
-    }
-    
     function renderBarbers() {
       // Tomamos los barberos de Firebase o los de prueba (si los de prueba están en [], la lista quedará en 0)
       const barbers = window.appData.barbers.length > 0 ? window.appData.barbers : defaultBarbersFallback;
@@ -4102,9 +4128,8 @@ function renderBranches() {
 
     }
 
-    // ==========================================
+
     // --- MÓDULO DE NÓMINAS Y COMISIONES (ADMIN) ---
-    // ==========================================
     function renderPayrollAdmin() {
       if (!window.payrollStartDate || !window.payrollEndDate) {
           const today = new Date();
@@ -4181,54 +4206,88 @@ function renderBranches() {
 
       const cashInRegister = totalGrossRevenue - totalPaidOut;
 
-      // Generar filas para PC (Tabla) a prueba de fallos
-      const desktopRows = payrollData.map(data => {
+      // FILAS PARA PC (Tabla Clásica)
+      const tableRows = payrollData.map(data => {
           let actionsHtml = '';
-          
           if (data.pendingToPay > 0) {
-              actionsHtml += '<button onclick="window.processPayment(\'' + data.id + '\', \'' + data.name + '\')" class="w-full bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white px-3 py-2 rounded-lg font-bold text-xs transition flex items-center justify-center gap-1 mb-1 border border-green-500/30"><i data-lucide="coins" class="w-4 h-4"></i> Pagar $' + data.pendingToPay.toFixed(2) + '</button>';
+              actionsHtml += `<button onclick="window.processPayment('${data.id}', '${data.name}')" class="w-full bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white px-3 py-2 rounded-lg font-bold text-xs transition flex items-center justify-center gap-1 mb-1 border border-green-500/30"><i data-lucide="coins" class="w-4 h-4"></i> Pagar $${data.pendingToPay.toFixed(2)}</button>`;
           }
-          
-          // AQUI RESTAURAMOS TICKET Y REVERTIR EN PC
           if (data.alreadyPaid > 0) {
-              actionsHtml += '<div class="flex gap-1 mb-1"><button onclick="window.showReceiptPeriod(\'' + data.id + '\')" class="flex-1 bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-white px-2 py-2 rounded-lg text-xs transition flex items-center justify-center border border-zinc-600" title="Ver Ticket del Periodo"><i data-lucide="receipt" class="w-4 h-4"></i></button><button onclick="window.undoPaymentPeriod(\'' + data.id + '\', \'' + data.name + '\')" class="flex-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-2 py-2 rounded-lg text-xs transition flex items-center justify-center border border-red-500/20" title="Revertir Pagos de esta Semana"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button></div>';
+              actionsHtml += `
+              <div class="flex gap-1 mt-1">
+                  <button onclick="window.showReceipt('${data.id}')" class="flex-1 bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-white px-2 py-2 rounded-lg text-xs transition flex items-center justify-center border border-zinc-600" title="Ver Comprobante">
+                      <i data-lucide="receipt" class="w-4 h-4"></i>
+                  </button>
+                  <button onclick="window.undoPayment('${data.id}', '${data.name}')" class="flex-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-2 py-2 rounded-lg text-xs transition flex items-center justify-center border border-red-500/20" title="Revertir / Deshacer Pago">
+                      <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                  </button>
+              </div>`;
           }
-          
-          const hasHistory = window.appData.appointments.some(a => a.barber_id === data.id && a.payout_status === 'paid');
-          if (hasHistory) {
-              actionsHtml += '<button onclick="window.showPaymentHistoryModal(\'' + data.id + '\')" class="w-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 px-3 py-2 rounded-lg font-bold text-xs transition flex items-center justify-center border border-blue-500/30 mt-1 gap-1 shadow-sm"><i data-lucide="history" class="w-4 h-4"></i> Historial Viejo</button>';
-          }
-          
-          if (data.servicesDone === 0 && !hasHistory) {
-              actionsHtml = '<span class="text-zinc-500 text-xs">Sin actividad</span>';
-          }
-          
-          return '<tr class="text-white border-b border-zinc-700/50 hover:bg-zinc-800/50 transition"><td class="py-4 px-4 font-medium"><div class="flex items-center gap-3"><div class="w-8 h-8 bg-zinc-700 rounded-full flex items-center justify-center"><i data-lucide="user" class="w-4 h-4 text-zinc-400"></i></div>' + data.name + '</div><button onclick="window.showBarberSalesBreakdown(\'' + data.id + '\')" class="text-xs text-gold-400 hover:text-white transition ml-11 mt-1 font-medium flex items-center gap-1"><i data-lucide="list" class="w-3 h-3"></i> Ver cortes</button></td><td class="py-4 px-4 text-center"><button onclick="window.showQuickCommissionModal(\'' + data.id + '\', \'' + data.name + '\', ' + data.commission + ')" class="flex items-center justify-center gap-2 mx-auto text-zinc-300 hover:text-white bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-600 transition"><span class="font-bold">' + data.commission + '%</span> <i data-lucide="edit-2" class="w-3 h-3 text-gold-400"></i></button></td><td class="py-4 px-4 text-right font-medium">$' + data.generatedAmount.toFixed(2) + '</td><td class="py-4 px-4 text-right"><p class="font-display text-xl text-white">$' + data.barberTotalCut.toFixed(2) + '</p><p class="text-xs text-zinc-400">Total a ganar</p></td><td class="py-4 px-4 w-40">' + actionsHtml + '</td></tr>';
-      }).join('');
+          if (data.servicesDone === 0) actionsHtml = '<span class="text-zinc-500 text-xs">Sin actividad</span>';
 
-      // Generar Tarjetas para Móvil a prueba de fallos
+          return `
+          <tr class="text-white border-b border-zinc-700/50 hover:bg-zinc-800/50 transition">
+              <td class="py-4 px-4 font-medium">
+                  <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 bg-zinc-700 rounded-full flex items-center justify-center"><i data-lucide="user" class="w-4 h-4 text-zinc-400"></i></div>
+                      ${data.name}
+                  </div>
+                  <button onclick="window.showBarberSalesBreakdown('${data.id}')" class="text-xs text-gold-400 hover:text-white transition ml-11 mt-1 font-medium flex items-center gap-1"><i data-lucide="list" class="w-3 h-3"></i> Ver cortes</button>
+              </td>
+              <td class="py-4 px-4 text-center">
+                  <button onclick="window.showQuickCommissionModal('${data.id}', '${data.name}', ${data.commission})" class="flex items-center justify-center gap-2 mx-auto text-zinc-300 hover:text-white bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-600 transition">
+                      <span class="font-bold">${data.commission}%</span> <i data-lucide="edit-2" class="w-3 h-3 text-gold-400"></i>
+                  </button>
+              </td>
+              <td class="py-4 px-4 text-right font-medium">$${data.generatedAmount.toFixed(2)}</td>
+              <td class="py-4 px-4 text-right">
+                  <p class="font-display text-xl text-white">$${data.barberTotalCut.toFixed(2)}</p>
+                  <p class="text-xs text-zinc-400">Total a ganar</p>
+              </td>
+              <td class="py-4 px-4 w-40">
+                  ${actionsHtml}
+              </td>
+          </tr>
+      `}).join('');
+
+      // NUEVO: TARJETAS MÓVILES PARA NÓMINA (Diseño adaptativo)
       const mobileCards = payrollData.map(data => {
           let actionsHtml = '';
-          
           if (data.pendingToPay > 0) {
-              actionsHtml += '<button onclick="window.processPayment(\'' + data.id + '\', \'' + data.name + '\')" class="w-full bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white px-4 py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 border border-green-500/30 mb-2 shadow-lg"><i data-lucide="coins" class="w-5 h-5"></i> Pagar $' + data.pendingToPay.toFixed(2) + '</button>';
+              actionsHtml += `<button onclick="window.processPayment('${data.id}', '${data.name}')" class="w-full bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white px-4 py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 border border-green-500/30 mb-2 shadow-lg"><i data-lucide="coins" class="w-5 h-5"></i> Pagar $${data.pendingToPay.toFixed(2)}</button>`;
           }
-          
-          // AQUI RESTAURAMOS TICKET Y REVERTIR EN MÓVIL
           if (data.alreadyPaid > 0) {
-              actionsHtml += '<div class="flex gap-2 mb-2"><button onclick="window.showReceiptPeriod(\'' + data.id + '\')" class="flex-1 bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-white px-4 py-3 rounded-xl text-sm font-bold transition flex items-center justify-center border border-zinc-600 gap-2"><i data-lucide="receipt" class="w-5 h-5"></i> Ticket</button><button onclick="window.undoPaymentPeriod(\'' + data.id + '\', \'' + data.name + '\')" class="flex-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-4 py-3 rounded-xl text-sm font-bold transition flex items-center justify-center border border-red-500/20 gap-2"><i data-lucide="rotate-ccw" class="w-5 h-5"></i> Revertir</button></div>';
+              actionsHtml += `<div class="flex gap-2 mt-2"><button onclick="window.showReceipt('${data.id}')" class="flex-1 bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-white px-4 py-3 rounded-xl text-sm font-bold transition flex items-center justify-center border border-zinc-600 gap-2"><i data-lucide="receipt" class="w-5 h-5"></i> Ticket</button><button onclick="window.undoPayment('${data.id}', '${data.name}')" class="flex-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 px-4 py-3 rounded-xl text-sm font-bold transition flex items-center justify-center border border-red-500/20 gap-2"><i data-lucide="rotate-ccw" class="w-5 h-5"></i> Revertir</button></div>`;
           }
-          
-          const hasHistory = window.appData.appointments.some(a => a.barber_id === data.id && a.payout_status === 'paid');
-          if (hasHistory) {
-              actionsHtml += '<button onclick="window.showPaymentHistoryModal(\'' + data.id + '\')" class="w-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 px-4 py-3 rounded-xl font-bold text-sm transition flex items-center justify-center border border-blue-500/30 gap-2 mt-1"><i data-lucide="history" class="w-5 h-5"></i> Historial Completo</button>';
-          }
-          
-          if (data.servicesDone === 0 && !hasHistory) {
-              actionsHtml = '<div class="text-center p-3 bg-zinc-800/50 rounded-xl text-zinc-500 text-sm">Sin actividad en este periodo</div>';
-          }
-          
-          return '<div class="bg-zinc-800/60 border border-zinc-700/50 p-4 md:p-5 rounded-2xl relative transition shadow-sm flex flex-col gap-4"><div class="flex justify-between items-start"><div class="flex items-center gap-3"><div class="w-10 h-10 bg-zinc-700 rounded-full flex items-center justify-center"><i data-lucide="user" class="w-5 h-5 text-zinc-400"></i></div><div><p class="text-white font-medium text-lg leading-none">' + data.name + '</p><button onclick="window.showBarberSalesBreakdown(\'' + data.id + '\')" class="text-xs text-gold-400 hover:text-white transition mt-1.5 flex items-center gap-1"><i data-lucide="list" class="w-3 h-3"></i> Ver ' + data.servicesDone + ' cortes</button></div></div><button onclick="window.showQuickCommissionModal(\'' + data.id + '\', \'' + data.name + '\', ' + data.commission + ')" class="flex flex-col items-center justify-center text-zinc-300 hover:text-white bg-zinc-900/80 px-3 py-2 rounded-xl border border-zinc-600 transition"><span class="text-[10px] text-zinc-500 uppercase tracking-widest leading-none mb-1">Comisión</span><div class="flex items-center gap-1"><span class="font-bold text-gold-400">' + data.commission + '%</span> <i data-lucide="edit-2" class="w-3 h-3 text-gold-400"></i></div></button></div><div class="grid grid-cols-2 gap-3 p-3 bg-zinc-900/50 rounded-xl"><div class="text-left"><p class="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Generado (Bruto)</p><p class="font-medium text-white">$' + data.generatedAmount.toFixed(2) + '</p></div><div class="text-right border-l border-zinc-700 pl-3"><p class="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Su Parte (Neto)</p><p class="font-display text-2xl text-green-400 leading-none">$' + data.barberTotalCut.toFixed(2) + '</p></div></div><div>' + actionsHtml + '</div></div>';
+          if (data.servicesDone === 0) actionsHtml = '<div class="text-center p-3 bg-zinc-800/50 rounded-xl text-zinc-500 text-sm">Sin actividad en este periodo</div>';
+
+          return `
+          <div class="bg-zinc-800/60 border border-zinc-700/50 p-4 md:p-5 rounded-2xl relative transition shadow-sm flex flex-col gap-4">
+              <div class="flex justify-between items-start">
+                  <div class="flex items-center gap-3">
+                      <div class="w-10 h-10 bg-zinc-700 rounded-full flex items-center justify-center"><i data-lucide="user" class="w-5 h-5 text-zinc-400"></i></div>
+                      <div>
+                          <p class="text-white font-medium text-lg leading-none">${data.name}</p>
+                          <button onclick="window.showBarberSalesBreakdown('${data.id}')" class="text-xs text-gold-400 hover:text-white transition mt-1.5 flex items-center gap-1"><i data-lucide="list" class="w-3 h-3"></i> Ver ${data.servicesDone} cortes</button>
+                      </div>
+                  </div>
+                  <button onclick="window.showQuickCommissionModal('${data.id}', '${data.name}', ${data.commission})" class="flex flex-col items-center justify-center text-zinc-300 hover:text-white bg-zinc-900/80 px-3 py-2 rounded-xl border border-zinc-600 transition">
+                      <span class="text-[10px] text-zinc-500 uppercase tracking-widest leading-none mb-1">Comisión</span>
+                      <div class="flex items-center gap-1"><span class="font-bold text-gold-400">${data.commission}%</span> <i data-lucide="edit-2" class="w-3 h-3 text-gold-400"></i></div>
+                  </button>
+              </div>
+              <div class="grid grid-cols-2 gap-3 p-3 bg-zinc-900/50 rounded-xl">
+                  <div class="text-left">
+                      <p class="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Generado (Bruto)</p>
+                      <p class="font-medium text-white">$${data.generatedAmount.toFixed(2)}</p>
+                  </div>
+                  <div class="text-right border-l border-zinc-700 pl-3">
+                      <p class="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Su Parte (Neto)</p>
+                      <p class="font-display text-2xl text-green-400 leading-none">$${data.barberTotalCut.toFixed(2)}</p>
+                  </div>
+              </div>
+              <div>${actionsHtml}</div>
+          </div>`;
       }).join('');
 
       return `
@@ -4237,40 +4296,40 @@ function renderBranches() {
             <div>
                 <h1 class="font-display text-3xl md:text-4xl text-white uppercase tracking-wide">CÁLCULO DE NÓMINAS</h1>
                 
-                <div class="flex flex-wrap gap-2 mt-3 mb-3">
-                    <button onclick="window.setPayrollRange('today')" class="bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-zinc-300 text-xs md:text-sm px-3 py-2 rounded-lg border border-zinc-700 transition font-bold shadow-sm flex-1 md:flex-none">Pago Diario</button>
-                    <button onclick="window.setPayrollRange('week')" class="bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-zinc-300 text-xs md:text-sm px-3 py-2 rounded-lg border border-zinc-700 transition font-bold shadow-sm flex-1 md:flex-none">Semanal</button>
-                    <button onclick="window.setPayrollRange('month')" class="bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-zinc-300 text-xs md:text-sm px-3 py-2 rounded-lg border border-zinc-700 transition font-bold shadow-sm flex-1 md:flex-none">Mensual</button>
+                <div class="flex flex-wrap gap-2 mt-3 mb-2">
+                    <button onclick="window.setPayrollRange('today')" class="bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-zinc-300 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 transition font-bold shadow-sm">Pago Diario</button>
+                    <button onclick="window.setPayrollRange('week')" class="bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-zinc-300 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 transition font-bold shadow-sm">Semanal</button>
+                    <button onclick="window.setPayrollRange('month')" class="bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-zinc-300 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 transition font-bold shadow-sm">Mensual</button>
                 </div>
 
-                <div class="flex items-center gap-2 md:gap-3 bg-zinc-800/80 p-2 rounded-xl inline-flex border border-zinc-700/50 w-full md:w-auto">
-                  <input type="date" id="payroll-start" value="${startDate}" onchange="window.updatePayrollDates()" class="bg-transparent text-zinc-300 font-medium focus:outline-none cursor-pointer [color-scheme:dark] px-2 text-sm flex-1 text-center md:text-left" title="Fecha de inicio">
-                  <span class="text-gold-400 font-bold text-xs md:text-sm">AL</span>
-                  <input type="date" id="payroll-end" value="${endDate}" onchange="window.updatePayrollDates()" class="bg-transparent text-zinc-300 font-medium focus:outline-none cursor-pointer [color-scheme:dark] px-2 text-sm flex-1 text-center md:text-left" title="Fecha de corte">
+                <div class="flex items-center gap-3 bg-zinc-800/80 p-2 rounded-xl inline-flex border border-zinc-700/50 w-full md:w-auto">
+                  <input type="date" id="payroll-start" value="${startDate}" onchange="window.updatePayrollDates()" class="bg-transparent text-zinc-300 font-medium focus:outline-none cursor-pointer [color-scheme:dark] px-2 text-sm w-full md:w-auto" title="Fecha de inicio">
+                  <span class="text-gold-400 font-bold">AL</span>
+                  <input type="date" id="payroll-end" value="${endDate}" onchange="window.updatePayrollDates()" class="bg-transparent text-zinc-300 font-medium focus:outline-none cursor-pointer [color-scheme:dark] px-2 text-sm w-full md:w-auto" title="Fecha de corte">
                 </div>
             </div>
             
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 w-full lg:w-auto">
                 <div class="bg-zinc-800 border border-zinc-700 px-3 md:px-4 py-3 rounded-xl flex flex-col justify-center">
                   <p class="text-[9px] md:text-[10px] text-zinc-400 uppercase tracking-widest font-bold mb-1">Ingreso Bruto</p>
-                  <p class="font-display text-xl md:text-2xl text-white leading-none">$${totalGrossRevenue.toFixed(2)}</p>
+                  <p class="font-display text-xl md:text-2xl text-white">$${totalGrossRevenue.toFixed(2)}</p>
                 </div>
                 <div class="bg-gold-400/10 border border-gold-400/30 px-3 md:px-4 py-3 rounded-xl flex flex-col justify-center">
-                  <p class="text-[9px] md:text-[10px] text-gold-400 uppercase tracking-widest font-bold mb-1">Utilidad Local</p>
-                  <p class="font-display text-xl md:text-2xl text-gold-400 leading-none">$${totalShopProfit.toFixed(2)}</p>
+                  <p class="text-[9px] md:text-[10px] text-gold-400 uppercase tracking-widest font-bold mb-1">Utilidad Barbería</p>
+                  <p class="font-display text-xl md:text-2xl text-gold-400">$${totalShopProfit.toFixed(2)}</p>
                 </div>
                 <div class="bg-red-500/10 border border-red-500/30 px-3 md:px-4 py-3 rounded-xl flex flex-col justify-center">
-                  <p class="text-[9px] md:text-[10px] text-red-400 uppercase tracking-widest font-bold mb-1">Por Pagar</p>
-                  <p class="font-display text-xl md:text-2xl text-red-400 leading-none">$${totalPending.toFixed(2)}</p>
+                  <p class="text-[9px] md:text-[10px] text-red-400 uppercase tracking-widest font-bold mb-1">Deuda Pendiente</p>
+                  <p class="font-display text-xl md:text-2xl text-red-400">$${totalPending.toFixed(2)}</p>
                 </div>
                 <div class="bg-green-500/20 border border-green-500/50 px-3 md:px-4 py-3 rounded-xl shadow-lg shadow-green-500/10 flex flex-col justify-center">
-                  <p class="text-[9px] md:text-[10px] text-green-400 uppercase tracking-widest font-bold mb-1">Caja Físico</p>
-                  <p class="font-display text-xl md:text-2xl text-green-400 leading-none">$${cashInRegister.toFixed(2)}</p>
+                  <p class="text-[9px] md:text-[10px] text-green-400 uppercase tracking-widest font-bold mb-1">Dinero en Caja</p>
+                  <p class="font-display text-xl md:text-2xl text-green-400">$${cashInRegister.toFixed(2)}</p>
                 </div>
             </div>
           </div>
           
-          <div class="glass rounded-3xl p-3 md:p-6 border border-zinc-700/50 shadow-2xl">
+          <div class="glass rounded-3xl p-3 md:p-6 border border-zinc-700/50 shadow-2xl mt-6">
             <div class="hidden md:block overflow-x-auto">
                 <table class="w-full text-left min-w-[900px]">
                   <thead class="bg-zinc-800/80 text-zinc-400 text-xs uppercase tracking-widest">
@@ -4283,7 +4342,7 @@ function renderBranches() {
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-zinc-700/30">
-                    ${barbersInBranch.length > 0 ? desktopRows : `<tr><td colspan="5" class="text-center py-12 text-zinc-500">No hay barberos registrados.</td></tr>`}
+                    ${barbersInBranch.length > 0 ? tableRows : `<tr><td colspan="5" class="text-center py-12 text-zinc-500">No hay barberos.</td></tr>`}
                   </tbody>
                 </table>
             </div>
@@ -4295,323 +4354,6 @@ function renderBranches() {
         </div>
       `;
     }
-
-    window.updatePayrollDates = () => {
-        window.payrollStartDate = document.getElementById('payroll-start').value;
-        window.payrollEndDate = document.getElementById('payroll-end').value;
-        renderCurrentView();
-    }
-
-    window.setPayrollRange = (type) => {
-        const today = new Date();
-        const formatDateForInput = (d) => {
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        };
-        if (type === 'today') {
-            window.payrollStartDate = formatDateForInput(today);
-            window.payrollEndDate = formatDateForInput(today);
-        } else if (type === 'week') {
-            const startOfWeek = new Date(today);
-            const day = startOfWeek.getDay(); 
-            const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); 
-            startOfWeek.setDate(diff);
-            const endOfWeek = new Date(startOfWeek);
-            endOfWeek.setDate(startOfWeek.getDate() + 6);
-            window.payrollStartDate = formatDateForInput(startOfWeek);
-            window.payrollEndDate = formatDateForInput(endOfWeek);
-        } else if (type === 'month') {
-            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-            const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-            window.payrollStartDate = formatDateForInput(startOfMonth);
-            window.payrollEndDate = formatDateForInput(endOfMonth);
-        }
-        renderCurrentView();
-    };
-
-    window.showQuickCommissionModal = (id, name, currentCommission) => {
-        window.showModal(`
-            <div class="p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <h2 class="font-display text-2xl text-white uppercase tracking-wide">COMISIÓN DE ${name}</h2>
-                    <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
-                </div>
-                <div class="mb-6 bg-gold-400/5 border border-gold-400/20 p-5 rounded-xl text-center">
-                    <label class="block text-sm text-gold-400 mb-3 font-bold uppercase tracking-widest">Porcentaje de ganancia</label>
-                    <div class="flex items-center justify-center gap-2">
-                        <input type="number" id="quick-edit-commission" value="${currentCommission}" min="0" max="100" class="w-32 bg-zinc-800 border border-gold-400/50 rounded-xl py-3 px-4 text-gold-400 font-display text-3xl focus:border-gold-400 outline-none text-center">
-                        <span class="text-gold-400 font-display text-3xl">%</span>
-                    </div>
-                </div>
-                <button onclick="window.saveQuickCommission('${id}')" class="w-full bg-gold-500 hover:bg-gold-400 text-zinc-900 py-4 rounded-xl font-bold transition flex justify-center items-center gap-2 shadow-lg"><i data-lucide="calculator" class="w-5 h-5"></i> Guardar y Recalcular</button>
-            </div>
-        `);
-    }
-
-    window.saveQuickCommission = async (id) => {
-        const newCommission = Number(document.getElementById('quick-edit-commission').value);
-        if(newCommission < 0 || newCommission > 100) return showToast('El porcentaje debe estar entre 0 y 100', 'error');
-        try {
-            await updateDoc(doc(db, "barbers", id), { commission: newCommission });
-            window.closeModal(); showToast('Porcentaje actualizado', 'success');
-        } catch(e) { showToast('Error al actualizar porcentaje', 'error'); }
-    }
-
-    window.showBarberSalesBreakdown = (barberId) => {
-        const barber = window.appData.barbers.find(b => (b.id || b.__backendId) === barberId);
-        if(!barber) return;
-        const startDate = window.payrollStartDate; const endDate = window.payrollEndDate;
-        const barberSales = window.appData.appointments.filter(a => a.status === 'completed' && a.barber_id === barberId && a.date >= startDate && a.date <= endDate).sort((a,b) => new Date(b.date + 'T' + b.time) - new Date(a.date + 'T' + a.time));
-        const activeServices = window.appData.services; const commissionPercent = barber.commission || 50;
-
-        window.showModal(`
-            <div class="p-6 max-h-[85vh] flex flex-col">
-                <div class="flex items-center justify-between mb-4 flex-shrink-0">
-                    <div><h2 class="font-display text-2xl text-white uppercase tracking-wide">CORTES DE ${barber.name}</h2><p class="text-zinc-400 text-sm">Del ${formatDate(startDate)} al ${formatDate(endDate)}</p></div>
-                    <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
-                </div>
-                <div class="bg-zinc-800/50 p-4 rounded-xl mb-4 flex justify-between items-center flex-shrink-0 border border-zinc-700">
-                    <p class="text-zinc-400 text-sm">Comisión del barbero: <span class="text-gold-400 font-bold">${commissionPercent}%</span></p>
-                    <p class="text-zinc-400 text-sm">Total de Cortes: <span class="text-white font-bold">${barberSales.length}</span></p>
-                </div>
-                <div class="overflow-y-auto pr-2 space-y-3 custom-scrollbar flex-1 pb-4">
-                    ${barberSales.length > 0 ? barberSales.map(sale => {
-                        const s = activeServices.find(ser => (ser.id || ser.__backendId) === sale.service_name) || {name: 'Servicio Borrado', price: 0};
-                        const thisCutProfit = (Number(s.price) * commissionPercent) / 100;
-                        const isWalkIn = sale.client_id === 'walk-in';
-                        
-                        return "<div class='bg-zinc-800/80 border border-zinc-700/50 p-4 rounded-xl flex justify-between items-center hover:border-gold-400/30 transition'><div><p class='text-white font-medium text-lg'>" + s.name + " <span class='text-gold-400 font-bold ml-2'>$" + s.price + "</span></p><p class='text-zinc-400 text-sm flex items-center gap-2 mt-1'><i data-lucide='calendar' class='w-3 h-3'></i> " + formatDate(sale.date) + " <i data-lucide='clock' class='w-3 h-3 ml-2'></i> " + sale.time + "</p><p class='text-zinc-500 text-xs mt-1'>Cliente: " + (sale.notes || 'Cliente de paso') + (isWalkIn ? " <span class='text-purple-400 ml-1'>(Venta Directa)</span>" : " <span class='text-blue-400 ml-1'>(Reserva)</span>") + "</p></div><div class='text-right'><p class='text-xs text-zinc-500 uppercase font-bold tracking-widest mb-1'>Comisión Generada</p><p class='font-display text-2xl text-green-400'>+$" + thisCutProfit.toFixed(2) + "</p></div></div>";
-                    }).join('') : `<div class="text-center py-10"><i data-lucide="scissors" class="w-12 h-12 text-zinc-600 mx-auto mb-3"></i><p class="text-zinc-500">No hay cortes registrados en este periodo.</p></div>`}
-                </div>
-            </div>
-        `);
-    }
-
-    // ==========================================
-    // --- MOTOR DE PAGOS EN LOTES E HISTORIAL ---
-    // ==========================================
-    window.processPayment = async (barberId, barberName) => {
-        const startDate = window.payrollStartDate;
-        const endDate = window.payrollEndDate;
-        const unpaidSales = window.appData.appointments.filter(a => a.status === 'completed' && a.barber_id === barberId && a.date >= startDate && a.date <= endDate && a.payout_status !== 'paid');
-        
-        if (unpaidSales.length === 0) return showToast('No hay cortes pendientes', 'warning');
-        if (!confirm(`¿Confirmas el pago a ${barberName} por ${unpaidSales.length} cortes?`)) return;
-
-        try {
-            showToast('Procesando pago...', 'info');
-            const batchTimestamp = new Date().toISOString(); 
-            for (let sale of unpaidSales) {
-                const saleId = sale.id || sale.__backendId;
-                await updateDoc(doc(db, "appointments", saleId), { payout_status: 'paid', paid_at: batchTimestamp });
-            }
-            showToast(`Pago registrado con éxito`, 'success');
-        } catch (error) { showToast('Error al registrar el pago', 'error'); }
-    };
-
-    // FUNCIONES RESTAURADAS PARA EL PERIODO ACTUAL
-    window.undoPaymentPeriod = async (barberId, barberName) => {
-        const startDate = window.payrollStartDate;
-        const endDate = window.payrollEndDate;
-        const paidSales = window.appData.appointments.filter(a => 
-            a.status === 'completed' && a.barber_id === barberId && 
-            a.date >= startDate && a.date <= endDate && a.payout_status === 'paid'
-        );
-
-        if (paidSales.length === 0) return;
-        if (!confirm(`¿Estás seguro de REVERTIR todos los pagos de ${barberName} en esta semana/periodo? El dinero volverá a 'Deuda Pendiente'.`)) return;
-
-        try {
-            showToast('Revirtiendo pagos...', 'info');
-            for (let sale of paidSales) {
-                const saleId = sale.id || sale.__backendId;
-                await updateDoc(doc(db, "appointments", saleId), { payout_status: 'pending', paid_at: null });
-            }
-            showToast('Pagos revertidos con éxito', 'success');
-        } catch (error) { showToast('Error al revertir', 'error'); }
-    };
-
-    window.showReceiptPeriod = (barberId) => {
-        const barber = window.appData.barbers.find(b => (b.id || b.__backendId) === barberId);
-        if(!barber) return;
-        
-        const startDate = window.payrollStartDate;
-        const endDate = window.payrollEndDate;
-        
-        const paidSales = window.appData.appointments.filter(a => 
-            a.status === 'completed' && a.barber_id === barberId && 
-            a.date >= startDate && a.date <= endDate && a.payout_status === 'paid'
-        );
-
-        const commissionPercent = barber.commission || 50;
-        const activeServices = window.appData.services;
-        let totalPaid = 0; 
-        
-        const breakdownHtml = paidSales.map(sale => {
-            const s = activeServices.find(ser => (ser.id || ser.__backendId) === sale.service_name);
-            const price = s && s.price ? Number(s.price) : 0;
-            const cutProfit = (price * commissionPercent) / 100;
-            totalPaid += cutProfit;
-            return "<div style='display:flex; justify-content:space-between; font-size:14px; border-bottom:1px dashed #ccc; padding:8px 0;'><span style='color:#444;'>" + (s ? s.name : 'Corte') + " <span style='color:#888; font-size:12px;'>(" + formatDate(sale.date) + ")</span></span><strong>$" + cutProfit.toFixed(2) + "</strong></div>";
-        }).join('');
-
-        const displayDate = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' });
-
-        window.showModal(`
-            <div class="p-6 flex flex-col items-center">
-                <div id="print-receipt-area" class="bg-white p-8 w-full max-w-sm text-black relative shadow-lg">
-                    <div class="text-center mb-6" style="border-bottom: 2px dashed #000; padding-bottom: 15px;">
-                        <h2 style="font-family: Arial; font-size: 24px; font-weight: 900; margin: 0;">COMPROBANTE</h2>
-                        <p style="font-size: 12px; color: #666; margin: 5px 0 0 0; text-transform: uppercase;">Pago de Nómina</p>
-                    </div>
-                    <div style="font-family: Arial; font-size: 14px; line-height: 1.5; margin-bottom: 20px;">
-                        <p style="margin: 5px 0;"><strong>Barbero:</strong> ${barber.name}</p>
-                        <p style="margin: 5px 0;"><strong>Periodo:</strong> ${formatDate(startDate)} - ${formatDate(endDate)}</p>
-                        <p style="margin: 5px 0;"><strong>Comisión:</strong> ${commissionPercent}%</p>
-                    </div>
-                    <div style="margin-bottom: 20px;">
-                        <p style="font-size: 12px; color: #666; font-weight: bold; text-transform: uppercase; margin-bottom: 10px;">Desglose (${paidSales.length} cortes)</p>
-                        ${breakdownHtml}
-                    </div>
-                    <div style="border-top: 2px solid #000; padding-top: 15px; display: flex; justify-content: space-between; align-items: flex-end;">
-                        <span style="font-weight: bold; font-size: 14px;">TOTAL ENTREGADO:</span>
-                        <span style="font-size: 28px; font-weight: 900;">$${totalPaid.toFixed(2)}</span>
-                    </div>
-                </div>
-                <div class="flex gap-3 w-full max-w-sm mt-6">
-                    <button onclick="window.closeModal()" class="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white py-3 rounded-xl font-bold transition">Cerrar</button>
-                    <button onclick="window.printElement('print-receipt-area')" class="flex-1 gradient-gold text-zinc-900 py-3 rounded-xl font-bold transition shadow-lg flex justify-center items-center gap-2"><i data-lucide="printer" class="w-4 h-4"></i> Imprimir</button>
-                </div>
-            </div>
-        `);
-    };
-
-    // EL HISTORIAL DE PAGOS ANTIGUOS
-    window.showPaymentHistoryModal = (barberId) => {
-        const barber = window.appData.barbers.find(b => (b.id || b.__backendId) === barberId);
-        if(!barber) return;
-        const paidSales = window.appData.appointments.filter(a => a.status === 'completed' && a.barber_id === barberId && a.payout_status === 'paid');
-        const batches = {};
-        
-        paidSales.forEach(sale => {
-            const key = sale.paid_at || sale.date; 
-            if(!batches[key]) batches[key] = [];
-            batches[key].push(sale);
-        });
-        
-        const sortedKeys = Object.keys(batches).sort((a,b) => new Date(b) - new Date(a));
-        const commissionPercent = barber.commission || 50;
-        const activeServices = window.appData.services;
-
-        const historyHtml = sortedKeys.length > 0 ? sortedKeys.map(key => {
-            const batchSales = batches[key];
-            let batchTotalPaid = 0;
-            batchSales.forEach(sale => {
-                const s = activeServices.find(ser => (ser.id || ser.__backendId) === sale.service_name);
-                if(s && s.price) batchTotalPaid += (Number(s.price) * commissionPercent) / 100;
-            });
-            let displayDate = key.includes('T') ? new Date(key).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' }) : key + " (Antiguo)";
-            return `
-                <div class="bg-zinc-800/80 border border-zinc-700/50 p-4 rounded-xl flex flex-col md:flex-row md:justify-between md:items-center hover:border-blue-400/30 transition mb-3 gap-4">
-                    <div>
-                        <p class="text-white font-medium text-lg flex items-center gap-2"><i data-lucide="check-circle" class="w-5 h-5 text-green-400"></i> Lote Pagado</p>
-                        <p class="text-zinc-400 text-sm flex items-center gap-2 mt-1"><i data-lucide="calendar" class="w-3 h-3"></i> ${displayDate}</p>
-                        <p class="text-zinc-500 text-xs mt-1">${batchSales.length} cortes pagados en esta transacción</p>
-                    </div>
-                    <div class="flex flex-col items-end gap-2">
-                        <p class="font-display text-2xl text-green-400">+$${batchTotalPaid.toFixed(2)}</p>
-                        <div class="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
-                            <button onclick="window.showReceiptBatch('${barberId}', '${key}')" class="flex-1 md:flex-none bg-zinc-900 hover:bg-gold-400 hover:text-zinc-900 text-white px-3 py-2 rounded-lg text-xs transition flex items-center justify-center border border-zinc-600 gap-1"><i data-lucide="receipt" class="w-4 h-4"></i> Ticket</button>
-                            <button onclick="window.undoPaymentBatch('${barber.name}', '${key}')" class="flex-1 md:flex-none bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3 py-2 rounded-lg text-xs transition flex items-center justify-center border border-red-500/20 gap-1"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Revertir</button>
-                        </div>
-                    </div>
-                </div>`;
-        }).join('') : `<p class="text-center text-zinc-500 py-6">No hay pagos registrados.</p>`;
-
-        window.showModal(`
-            <div class="p-6 max-h-[85vh] flex flex-col">
-                <div class="flex items-center justify-between mb-6 flex-shrink-0">
-                    <div><h2 class="font-display text-2xl text-white uppercase tracking-wide">HISTORIAL COMPLETO</h2><p class="text-zinc-400 text-sm">${barber.name}</p></div>
-                    <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
-                </div>
-                <div class="overflow-y-auto pr-2 custom-scrollbar flex-1 pb-4">${historyHtml}</div>
-            </div>
-        `);
-    };
-
-    window.showReceiptBatch = (barberId, batchKey) => {
-        const barber = window.appData.barbers.find(b => (b.id || b.__backendId) === barberId);
-        const batchSales = window.appData.appointments.filter(a => a.barber_id === barberId && a.payout_status === 'paid' && (a.paid_at === batchKey || a.date === batchKey));
-        const commissionPercent = barber.commission || 50;
-        const activeServices = window.appData.services;
-        let totalPaid = 0; 
-        
-        const breakdownHtml = batchSales.map(sale => {
-            const s = activeServices.find(ser => (ser.id || ser.__backendId) === sale.service_name);
-            const price = s && s.price ? Number(s.price) : 0;
-            const cutProfit = (price * commissionPercent) / 100;
-            totalPaid += cutProfit;
-            return "<div style='display:flex; justify-content:space-between; font-size:14px; border-bottom:1px dashed #ccc; padding:8px 0;'><span style='color:#444;'>" + (s ? s.name : 'Corte') + "</span><strong>$" + cutProfit.toFixed(2) + "</strong></div>";
-        }).join('');
-
-        let displayDate = batchKey.includes('T') ? new Date(batchKey).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' }) : batchKey;
-
-        window.showModal(`
-            <div class="p-6 flex flex-col items-center">
-                <div id="print-receipt-area" class="bg-white p-8 w-full max-w-sm text-black relative shadow-lg">
-                    <div class="text-center mb-6" style="border-bottom: 2px dashed #000; padding-bottom: 15px;">
-                        <h2 style="font-family: Arial; font-size: 24px; font-weight: 900; margin: 0;">COMPROBANTE</h2>
-                        <p style="font-size: 12px; color: #666; margin: 5px 0 0 0; text-transform: uppercase;">Pago de Nómina</p>
-                    </div>
-                    <div style="font-family: Arial; font-size: 14px; line-height: 1.5; margin-bottom: 20px;">
-                        <p style="margin: 5px 0;"><strong>Barbero:</strong> ${barber.name}</p>
-                        <p style="margin: 5px 0;"><strong>Fecha del Lote:</strong> ${displayDate}</p>
-                        <p style="margin: 5px 0;"><strong>Comisión:</strong> ${commissionPercent}%</p>
-                    </div>
-                    <div style="margin-bottom: 20px;">
-                        <p style="font-size: 12px; color: #666; font-weight: bold; text-transform: uppercase; margin-bottom: 10px;">Desglose (${batchSales.length} cortes)</p>
-                        ${breakdownHtml}
-                    </div>
-                    <div style="border-top: 2px solid #000; padding-top: 15px; display: flex; justify-content: space-between; align-items: flex-end;">
-                        <span style="font-weight: bold; font-size: 14px;">TOTAL:</span>
-                        <span style="font-size: 28px; font-weight: 900;">$${totalPaid.toFixed(2)}</span>
-                    </div>
-                </div>
-                <div class="flex gap-3 w-full max-w-sm mt-6">
-                    <button onclick="window.closeModal()" class="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white py-3 rounded-xl font-bold transition">Cerrar</button>
-                    <button onclick="window.printElement('print-receipt-area')" class="flex-1 gradient-gold text-zinc-900 py-3 rounded-xl font-bold transition shadow-lg flex justify-center items-center gap-2"><i data-lucide="printer" class="w-4 h-4"></i> Imprimir</button>
-                </div>
-            </div>
-        `);
-    };
-
-    window.undoPaymentBatch = async (barberName, batchKey) => {
-        const batchSales = window.appData.appointments.filter(a => a.payout_status === 'paid' && (a.paid_at === batchKey || a.date === batchKey));
-        if (batchSales.length === 0) return;
-
-        if (!confirm(`¿Estás seguro de REVERTIR este lote antiguo de ${batchSales.length} cortes para ${barberName}? El dinero volverá a 'Deuda Pendiente'.`)) return;
-
-        try {
-            showToast('Revirtiendo pagos...', 'info');
-            for (let sale of batchSales) {
-                const saleId = sale.id || sale.__backendId;
-                await updateDoc(doc(db, "appointments", saleId), { payout_status: 'pending', paid_at: null });
-            }
-            window.closeModal(); 
-            showToast('Lote de pagos revertido', 'success');
-        } catch (error) { showToast('Error al revertir', 'error'); }
-    };
-
-    window.printElement = (elementId) => {
-        const printWindow = window.open('', '', 'height=600,width=400');
-        const content = document.getElementById(elementId).innerHTML;
-        printWindow.document.write('<html><head><title>Imprimir Ticket</title></head><body style="margin:0; padding:10px;">');
-        printWindow.document.write(content);
-        printWindow.document.write('</body></html>');
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => { printWindow.print(); printWindow.close(); }, 250);
-    };
-
 
     // Actualiza las fechas y recarga
     window.updatePayrollDates = () => {
