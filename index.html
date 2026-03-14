@@ -285,7 +285,7 @@
     // FIREBASE INITIALIZATION
     // =============================================
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, onSnapshot, query, where, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -344,7 +344,8 @@
       blockedSlots: [],
       schedules: [],
       branches: [],
-      barbers: []
+      barbers: [],
+      expenses: [] // <--- NUEVO: Agregamos el contenedor de gastos
     };
     
     window.currentUser = null;
@@ -369,7 +370,8 @@
       unsubscribes.forEach(unsub => unsub()); // clear previous
       unsubscribes = [];
 
-      const collectionsToListen = ['appointments', 'services', 'users', 'promotions', 'blockedSlots', 'schedules', 'branches', 'barbers'];
+      // Cambia esta línea:
+    const collectionsToListen = ['appointments', 'services', 'users', 'promotions', 'blockedSlots', 'schedules', 'branches', 'barbers', 'expenses'];
       
       collectionsToListen.forEach(collectionName => {
         const unsub = onSnapshot(collection(db, collectionName), (snapshot) => {
@@ -645,6 +647,7 @@ onAuthStateChanged(auth, async (user) => {
           { view: 'daily-sales', label: 'Ventas de Hoy', icon: 'badge-dollar-sign' },
           { view: 'payroll', label: 'Nóminas', icon: 'wallet' },
           { view: 'branding', label: 'Personalización', icon: 'palette' }, // NUEVO BOTÓN
+          { view: 'expenses', label: 'Gastos', icon: 'receipt' }, // <--- NUEVO BOTÓN
           { view: 'appointments', label: 'Todas las Citas', icon: 'calendar-range' },
           { view: 'calendar', label: 'Calendario', icon: 'calendar' },
           { view: 'barbers', label: 'Barberos', icon: 'users' },
@@ -689,6 +692,7 @@ onAuthStateChanged(auth, async (user) => {
         case 'daily-sales': mainContent.innerHTML = renderDailySalesAdmin(); break; // NUEVA PANTALLAs
         case 'services': mainContent.innerHTML = renderServices(); break;
         case 'payroll': mainContent.innerHTML = renderPayrollAdmin(); break; // NUEVA 
+        case 'expenses': mainContent.innerHTML = renderExpensesAdmin(); break; // <--- NUEVA RUTA
         case 'branding': mainContent.innerHTML = renderBrandingAdmin(); break; // NUEVA PANTALLA
         case 'book': mainContent.innerHTML = renderBooking(); break;
         case 'my-appointments': mainContent.innerHTML = renderMyAppointments(); break;
@@ -1006,23 +1010,37 @@ onAuthStateChanged(auth, async (user) => {
           .slice(0, 4); // Tomamos el Top 4 más vendido
 
       // --- 3. CÁLCULO MAESTRO FINANCIERO (HISTÓRICO) ---
+        // --- 3. CÁLCULO MAESTRO FINANCIERO (HISTÓRICO) ---
       let totalBruto = 0;
-      let totalPagadoBarberos = 0;
+      let totalComisionesBarberos = 0; // Cambiamos esto: Ahora calcula lo generado (pagado o pendiente)
+      let totalGastos = 0;
 
+      // 1. Sumamos ingresos y restamos la parte que le toca a los barberos
       completedAppointments.forEach(apt => {
           const service = activeServices.find(s => (s.id || s.__backendId) === apt.service_name);
           if (service) {
               const price = Number(service.price);
               totalBruto += price; 
-              if (apt.payout_status === 'paid') {
-                  const barber = window.appData.barbers.find(b => (b.id || b.__backendId) === apt.barber_id);
-                  const commission = barber ? (barber.commission || 50) : 50;
-                  totalPagadoBarberos += (price * commission) / 100;
-              }
+              
+              // Calculamos la comisión generada por el barbero en este corte
+              const barber = window.appData.barbers.find(b => (b.id || b.__backendId) === apt.barber_id);
+              const commission = barber ? (barber.commission || 50) : 50;
+              totalComisionesBarberos += (price * commission) / 100;
           }
       });
 
-      const gananciaNeta = totalBruto - totalPagadoBarberos;
+      // 2. Sumamos todos los gastos operativos
+      let dashboardExpenses = window.appData.expenses || [];
+      if (window.currentBranch && window.currentBranch.__backendId !== 'main') {
+          dashboardExpenses = dashboardExpenses.filter(e => e.branch_id === window.currentBranch.__backendId);
+      }
+      
+      dashboardExpenses.forEach(e => {
+          totalGastos += Number(e.amount);
+      });
+
+      // 3. LA FÓRMULA EXACTA: Ingresos - (La parte de los Barberos) - Gastos
+      const gananciaNeta = totalBruto - totalComisionesBarberos - totalGastos;
 
       // Generar HTML de Citas Pendientes
       const pendingHtml = pendingAppointments.length > 0 
@@ -1079,7 +1097,7 @@ onAuthStateChanged(auth, async (user) => {
             <p class="text-zinc-400">Resumen histórico y financiero de tu negocio</p>
           </div>
           
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             <div class="glass rounded-xl p-5 border border-zinc-700/50">
               <div class="flex items-center gap-3 mb-3">
                 <div class="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center"><i data-lucide="wallet" class="w-5 h-5 text-blue-400"></i></div>
@@ -1090,17 +1108,25 @@ onAuthStateChanged(auth, async (user) => {
 
             <div class="glass rounded-xl p-5 border border-red-500/20 bg-red-500/5">
               <div class="flex items-center gap-3 mb-3">
-                <div class="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center"><i data-lucide="coins" class="w-5 h-5 text-red-400"></i></div>
-                <span class="text-[10px] text-red-400 uppercase tracking-widest font-bold">Nóminas Pagadas</span>
+                <div class="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center"><i data-lucide="users" class="w-5 h-5 text-red-400"></i></div>
+                <span class="text-[10px] text-red-400 uppercase tracking-widest font-bold">Nómina Generada</span>
               </div>
-              <p class="font-display text-3xl text-red-400">-$${totalPagadoBarberos.toFixed(2)}</p>
+              <p class="font-display text-3xl text-red-400">-$${totalComisionesBarberos.toFixed(2)}</p>
+            </div>
+
+            <div class="glass rounded-xl p-5 border border-orange-500/20 bg-orange-500/5">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center"><i data-lucide="receipt" class="w-5 h-5 text-orange-400"></i></div>
+                <span class="text-[10px] text-orange-400 uppercase tracking-widest font-bold">Gastos</span>
+              </div>
+              <p class="font-display text-3xl text-orange-400">-$${totalGastos.toFixed(2)}</p>
             </div>
 
             <div class="glass rounded-xl p-5 border border-gold-400/30 bg-gold-400/10 relative overflow-hidden group">
               <div class="absolute -right-4 -top-4 p-4 opacity-10 transition transform group-hover:scale-110"><i data-lucide="landmark" class="w-20 h-20 text-gold-400"></i></div>
               <div class="flex items-center gap-3 mb-3 relative z-10">
                 <div class="w-10 h-10 gradient-gold rounded-lg flex items-center justify-center shadow-lg shadow-gold-500/20"><i data-lucide="landmark" class="w-5 h-5 text-zinc-900"></i></div>
-                <span class="text-[10px] text-gold-400 uppercase tracking-widest font-bold">Ganancia Neta (Caja)</span>
+                <span class="text-[10px] text-gold-400 uppercase tracking-widest font-bold">Ganancia Neta</span>
               </div>
               <p class="font-display text-3xl text-gold-400 relative z-10">$${gananciaNeta.toFixed(2)}</p>
             </div>
@@ -1640,23 +1666,40 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     function renderPromotions() {
-      const activePromos = window.appData.promotions.length > 0 ? window.appData.promotions : [
-        { code: 'NUEVO20', discount: 20, description: '20% descuento nuevos clientes', validUntil: '2026-12-31', active: true }
-      ];
+      const activePromos = window.appData.promotions || [];
+      
       return `
         <div class="p-6 lg:p-8 fade-in">
-          <div class="mb-8"><h1 class="font-display text-3xl text-white mb-2">PROMOCIONES</h1></div>
+          <div class="mb-8">
+            <h1 class="font-display text-3xl text-white mb-2">PROMOCIONES</h1>
+            <p class="text-zinc-400">Aprovecha nuestros descuentos especiales</p>
+          </div>
+          
+          ${activePromos.length > 0 ? `
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            ${activePromos.filter(p => p.active !== false).map(promo => `
-              <div class="glass rounded-2xl overflow-hidden">
-                <div class="gradient-gold p-6 text-center"><p class="font-display text-5xl text-zinc-900">${promo.discount}%</p></div>
+            ${activePromos.map(promo => `
+              <div class="glass rounded-2xl overflow-hidden hover:scale-[1.02] transition transform border border-gold-400/20 shadow-lg shadow-gold-500/5">
+                <div class="gradient-gold p-6 text-center">
+                    <p class="font-display text-5xl text-zinc-900">${promo.discount}%</p>
+                    <p class="text-zinc-900 font-bold uppercase tracking-widest text-xs mt-1">Descuento</p>
+                </div>
                 <div class="p-6">
-                  <p class="text-white mb-2">${promo.description}</p>
-                  <div class="flex justify-between mt-4"><code class="text-gold-400 font-mono font-bold">${promo.code}</code><p class="text-xs text-zinc-500">Hasta ${formatDate(promo.validUntil)}</p></div>
+                  <p class="text-white mb-2 font-medium">${promo.description}</p>
+                  <div class="flex items-center justify-between mt-4 pt-4 border-t border-zinc-700/50">
+                    <code class="text-gold-400 font-mono font-bold bg-gold-400/10 px-3 py-1.5 rounded-lg border border-gold-400/30">${promo.code}</code>
+                    <p class="text-xs text-zinc-400 flex items-center gap-1"><i data-lucide="calendar" class="w-3 h-3"></i> Vence: ${formatDate(promo.validUntil)}</p>
+                  </div>
                 </div>
               </div>
             `).join('')}
           </div>
+          ` : `
+          <div class="text-center py-16 bg-zinc-800/30 rounded-2xl border border-zinc-700/50">
+            <i data-lucide="percent" class="w-16 h-16 text-zinc-600 mx-auto mb-4"></i>
+            <p class="text-zinc-400 text-xl font-medium">No hay promociones activas por el momento</p>
+            <p class="text-zinc-500 text-sm mt-2">Vuelve pronto para descubrir nuevas ofertas.</p>
+          </div>
+          `}
         </div>
       `;
     }
@@ -1727,57 +1770,54 @@ onAuthStateChanged(auth, async (user) => {
     }
 
    // --- CALENDARIO ---
-   // --- CALENDARIO ---
    function renderCalendar() {
       const dates = getCalendarDates(window.selectedDate);
       const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
       const currentMonthName = monthNames[window.selectedDate.getMonth()];
       const currentYear = window.selectedDate.getFullYear();
 
-      // Filtrar citas según el rol para mostrarlas en el calendario
+      // Filtrar citas según el rol
       let validAppointments = window.appData.appointments.filter(a => a.status !== 'cancelled');
       
       if (window.currentUser.role === 'barber') {
-        // SOLUCIÓN: Filtrar por barber_id del perfil
         validAppointments = validAppointments.filter(a => a.barber_id === window.currentUser.barber_id || a.barber_id === window.currentUser.id);
       } else if (window.currentUser.role === 'admin' && window.currentBranch && window.currentBranch.__backendId !== 'main') {
         validAppointments = validAppointments.filter(a => a.branch_id === window.currentBranch.__backendId);
       }
 
-      // ... (El resto de la función renderCalendar sigue igual) ...
       return `
-        <div class="p-6 lg:p-8 fade-in flex flex-col h-full">
-          <div class="flex items-center justify-between mb-6">
+        <div class="p-4 md:p-6 lg:p-8 fade-in flex flex-col h-full">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
             <div>
               <h1 class="font-display text-3xl lg:text-4xl text-white uppercase tracking-wide">CALENDARIO</h1>
               <p class="text-zinc-400 text-lg">${currentMonthName} ${currentYear}</p>
             </div>
-            <div class="flex items-center gap-2">
-              <button onclick="window.changeMonth(-1)" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition">
+            <div class="flex items-center gap-2 self-start sm:self-auto">
+              <button onclick="window.changeMonth(-1)" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition shadow-sm">
                 <i data-lucide="chevron-left" class="w-5 h-5"></i>
               </button>
-              <button onclick="window.goToToday()" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium rounded-lg transition">
+              <button onclick="window.goToToday()" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-medium rounded-lg transition shadow-sm">
                 Hoy
               </button>
-              <button onclick="window.changeMonth(1)" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition">
+              <button onclick="window.changeMonth(1)" class="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition shadow-sm">
                 <i data-lucide="chevron-right" class="w-5 h-5"></i>
               </button>
             </div>
           </div>
           
-          <div class="border border-zinc-800 rounded-2xl p-4 bg-zinc-900/40 flex-1 overflow-x-auto">
-            <div class="min-w-[700px] h-full flex flex-col">
-              <div class="grid grid-cols-7 gap-2 mb-2">
+          <div class="border border-zinc-800/50 rounded-2xl p-2 md:p-4 bg-zinc-900/40 flex-1">
+            <div class="w-full h-full flex flex-col">
+              <div class="grid grid-cols-7 gap-1 md:gap-2 mb-2">
                 ${['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(day => `
-                  <div class="text-center text-sm text-zinc-400 font-medium py-2">${day}</div>
+                  <div class="text-center text-[10px] md:text-sm text-zinc-400 font-medium py-1 md:py-2 truncate">${day}</div>
                 `).join('')}
               </div>
               
-              <div class="grid grid-cols-7 gap-2 flex-1 auto-rows-fr">
+              <div class="grid grid-cols-7 gap-1 md:gap-2 flex-1 auto-rows-fr">
                 ${dates.map(date => {
                   const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                   
-                  // Calcular fecha actual de forma segura considerando zona horaria
+                  // Calcular fecha actual
                   const todayObj = new Date();
                   const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
                   
@@ -1785,18 +1825,20 @@ onAuthStateChanged(auth, async (user) => {
                   const isCurrentMonth = date.getMonth() === window.selectedDate.getMonth();
                   const dayAppointments = validAppointments.filter(a => a.date === dateStr);
                   
-                  // Clases CSS basadas en la imagen
+                  // Clases CSS adaptativas
                   const cellBg = 'bg-[#1c1c1e] hover:bg-[#2a2a2c]';
                   const borderClass = isToday ? 'border border-gold-400' : 'border border-transparent';
                   const textClass = isToday ? 'text-gold-400 font-bold' : (isCurrentMonth ? 'text-white font-medium' : 'text-zinc-600');
                   
                   return `
-                    <div onclick="window.selectDate('${dateStr}')" class="${cellBg} ${borderClass} rounded-xl p-3 flex flex-col cursor-pointer transition relative min-h-[100px]">
-                      <span class="${textClass} text-sm">${date.getDate()}</span>
+                    <div onclick="window.selectDate('${dateStr}')" class="${cellBg} ${borderClass} rounded-lg md:rounded-xl p-1 md:p-3 flex flex-col items-center md:items-start cursor-pointer transition relative min-h-[50px] md:min-h-[100px]">
+                      <span class="${textClass} text-[11px] md:text-sm">${date.getDate()}</span>
                       
-                      <div class="mt-auto pt-2 space-y-1">
+                      <div class="mt-auto pt-1 w-full flex justify-center md:justify-start">
                         ${dayAppointments.length > 0 ? `
-                          <div class="text-[10px] md:text-xs bg-gold-400/10 text-gold-400 px-2 py-1 rounded-md truncate font-medium border border-gold-400/20">
+                          <div class="block md:hidden w-1.5 h-1.5 rounded-full bg-gold-400 mt-1 shadow-[0_0_5px_rgba(212,175,55,0.8)]"></div>
+                          
+                          <div class="hidden md:block text-[10px] md:text-xs bg-gold-400/10 text-gold-400 px-2 py-1 rounded-md truncate font-medium border border-gold-400/20 w-full text-left">
                             ${dayAppointments.length} cita${dayAppointments.length > 1 ? 's' : ''}
                           </div>
                         ` : ''}
@@ -2192,6 +2234,9 @@ onAuthStateChanged(auth, async (user) => {
     }
     
 
+    // ==========================================
+    // --- MÓDULO DE USUARIOS (ADMIN) ---
+    // ==========================================
     function renderUsers() {
       const usersList = window.appData.users || [];
       
@@ -2218,9 +2263,12 @@ onAuthStateChanged(auth, async (user) => {
                   </p>
                 </div>
                 
-                <div class="opacity-0 group-hover:opacity-100 transition-opacity">
+                <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
+                  <button onclick="window.showEditUserModal('${u.__backendId || u.id}')" class="text-zinc-400 hover:text-white bg-zinc-900/80 p-2 rounded-lg transition" title="Editar y Contraseña">
+                    <i data-lucide="edit-2" class="w-4 h-4"></i>
+                  </button>
                   ${window.currentUser && (window.currentUser.id === u.id || window.currentUser.__backendId === u.__backendId) ? `
-                    <span class="text-zinc-500 text-xs italic px-3">Tú</span>
+                    <span class="text-zinc-500 text-xs italic px-3 py-2">Tú</span>
                   ` : `
                     <button onclick="window.deleteUser('${u.__backendId || u.id}')" class="text-zinc-400 hover:text-red-400 bg-zinc-900/80 p-2 rounded-lg transition" title="Eliminar Usuario">
                       <i data-lucide="trash-2" class="w-4 h-4"></i>
@@ -2237,6 +2285,108 @@ onAuthStateChanged(auth, async (user) => {
           </div>
         </div>
       `;
+    }
+
+    // Modal para Editar Usuario y Contraseña
+    window.showEditUserModal = (id) => {
+        const user = window.appData.users.find(u => (u.id || u.__backendId) === id);
+        if(!user) return;
+
+        window.showModal(`
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="font-display text-2xl text-white tracking-wide uppercase">EDITAR USUARIO</h2>
+                    <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                
+                <div class="space-y-4 mb-6">
+                    <div>
+                        <label class="block text-sm text-zinc-400 mb-2">Nombre Completo</label>
+                        <input type="text" id="euser-name" value="${user.name || ''}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-zinc-400 mb-2">Teléfono</label>
+                        <input type="tel" id="euser-phone" value="${user.phone || ''}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-zinc-400 mb-2">Rol (Modificable desde panel Barberos)</label>
+                        <input type="text" value="${user.role.toUpperCase()}" disabled class="w-full bg-zinc-800/80 border border-zinc-700 rounded-xl py-3 px-4 text-zinc-500 cursor-not-allowed">
+                    </div>
+                </div>
+
+                <div class="bg-indigo-900/20 border border-indigo-500/30 p-4 rounded-xl mb-6">
+                    <h4 class="text-indigo-400 font-medium mb-2 flex items-center gap-2"><i data-lucide="key" class="w-4 h-4"></i> Restablecer Contraseña</h4>
+                    <p class="text-xs text-zinc-400 mb-3">Por seguridad, Firebase no permite cambiar contraseñas directamente. Al hacer clic, enviaremos un correo a <b>${user.email}</b> con un enlace seguro para que el usuario cree una nueva.</p>
+                    <button onclick="window.sendUserPasswordReset('${user.email}')" class="w-full bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-white py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 border border-indigo-500/30">
+                        <i data-lucide="mail" class="w-4 h-4"></i> Enviar Enlace de Recuperación
+                    </button>
+                </div>
+                
+                <button onclick="window.updateUser('${id}')" class="w-full gradient-gold text-zinc-900 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg">
+                    <i data-lucide="save" class="w-5 h-5"></i> Guardar Cambios
+                </button>
+            </div>
+        `);
+    };
+
+    // Actualizar datos del usuario en Firebase
+    window.updateUser = async (id) => {
+        const name = document.getElementById('euser-name').value.trim();
+        const phone = document.getElementById('euser-phone').value.trim();
+
+        if(!name) return showToast('El nombre es obligatorio', 'error');
+
+        try {
+            showToast('Actualizando...', 'info');
+            await updateDoc(doc(db, "users", id), {
+                name: name,
+                phone: phone
+            });
+            window.closeModal();
+            showToast('Usuario actualizado correctamente', 'success');
+        } catch (error) {
+            showToast('Error al actualizar usuario', 'error');
+        }
+    };
+// Motor seguro de recuperación de contraseña de Firebase
+window.sendUserPasswordReset = async (email) => {
+        if(!confirm(`¿Estás seguro de enviar un correo de restablecimiento de contraseña a: ${email}?`)) return;
+        
+        try {
+            showToast('Enviando correo de recuperación...', 'info');
+            
+            // Usamos la función nativa que acabamos de importar arriba
+            await sendPasswordResetEmail(auth, email);
+            
+            showToast('¡Enlace enviado correctamente al correo del usuario!', 'success');
+        } catch(error) {
+            console.error("Error al enviar reset de contraseña:", error);
+            
+            // Firebase nos avisa si el correo no es válido o no tiene cuenta
+            if (error.code === 'auth/user-not-found') {
+                showToast('Error: Este correo no está registrado en el sistema de acceso.', 'error');
+            } else if (error.code === 'auth/invalid-email') {
+                showToast('Error: El formato del correo es inválido.', 'error');
+            } else {
+                showToast('Error al enviar el correo. Intenta de nuevo.', 'error');
+            }
+        }
+    };
+
+    // Eliminar Usuario
+    window.deleteUser = async (id) => {
+      if (window.currentUser && (window.currentUser.id === id || window.currentUser.__backendId === id)) {
+        alert('⚠️ Operación denegada: No puedes eliminar tu propia cuenta de administrador.');
+        return;
+      }
+      if (confirm('¿Estás seguro de eliminar este usuario? Perderá el acceso al sistema permanentemente.')) {
+        try {
+          await deleteDoc(doc(db, "users", id));
+          showToast('Usuario eliminado con éxito', 'success');
+        } catch (error) {
+          alert("Error de Firebase al intentar borrar el usuario: " + error.message);
+        }
+      }
     }
 
     // ==========================================
@@ -2263,42 +2413,24 @@ onAuthStateChanged(auth, async (user) => {
       }
     }
 
-    // --- ESTADÍSTICAS Y GRÁFICAS ---
     function renderStats() {
-      // 1. Filtrar solo citas completadas
       const completedAppointments = window.appData.appointments.filter(a => a.status === 'completed');
+      const expenses = window.appData.expenses || [];
       
-      // 2. Función para obtener el precio de cada cita
       const getPrice = (apt) => {
         const s = window.appData.services.find(ser => ser.id === apt.service_name || ser.__backendId === apt.service_name);
         return s && s.price ? Number(s.price) : 0;
       };
 
-      // 3. Fechas para los cálculos
       const today = new Date();
       const currentMonth = today.getMonth();
       const currentYear = today.getFullYear();
       
-      const toDateString = (date) => {
-        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      };
-
+      const toDateString = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       const todayStr = toDateString(today);
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(today.getDate() - 6);
 
-      // 4. Calcular Métricas de las Tarjetas Superiores
-      const dailySales = completedAppointments
-        .filter(a => a.date === todayStr)
-        .reduce((sum, a) => sum + getPrice(a), 0);
-
-      const weeklySales = completedAppointments
-        .filter(a => {
-           const aptDate = new Date(a.date + "T00:00:00"); 
-           return aptDate >= new Date(sevenDaysAgo.setHours(0,0,0,0));
-        })
-        .reduce((sum, a) => sum + getPrice(a), 0);
-
+      // --- CÁLCULOS DEL MES ACTUAL ---
+      // 1. Ingresos
       const monthlySales = completedAppointments
         .filter(a => {
            const aptDate = new Date(a.date + "T00:00:00");
@@ -2306,148 +2438,164 @@ onAuthStateChanged(auth, async (user) => {
         })
         .reduce((sum, a) => sum + getPrice(a), 0);
 
-      const totalRev = completedAppointments.reduce((sum, a) => sum + getPrice(a), 0);
+      // 2. Nóminas pagadas/generadas
+      let monthlyPayroll = 0;
+      completedAppointments.forEach(a => {
+          const aptDate = new Date(a.date + "T00:00:00");
+          if(aptDate.getMonth() === currentMonth && aptDate.getFullYear() === currentYear) {
+              const barber = window.appData.barbers.find(b => (b.id || b.__backendId) === a.barber_id);
+              const commission = barber ? (barber.commission || 50) : 50;
+              monthlyPayroll += (getPrice(a) * commission) / 100;
+          }
+      });
 
-      // 5. Iniciar la gráfica por defecto en "Semana" después de renderizar el HTML
-      setTimeout(() => {
-        window.updateSalesChart('week');
-      }, 50);
+      // 3. Gastos Operativos
+      const monthlyExpenses = expenses
+        .filter(e => {
+           const eDate = new Date(e.date + "T00:00:00");
+           return eDate.getMonth() === currentMonth && eDate.getFullYear() === currentYear;
+        })
+        .reduce((sum, e) => sum + Number(e.amount), 0);
 
-      // 6. Retornar el HTML
+      // 4. GANANCIA NETA REAL
+      const netProfit = monthlySales - monthlyPayroll - monthlyExpenses;
+
+      setTimeout(() => { window.updateSalesChart('week'); }, 50);
+
       return `
         <div class="p-6 lg:p-8 fade-in">
           <div class="mb-8">
-            <h1 class="font-display text-3xl tracking-wide uppercase text-white">ESTADÍSTICAS GLOBALES</h1>
-            <p class="text-zinc-400">Rendimiento financiero de tu negocio basado en citas completadas</p>
+            <h1 class="font-display text-3xl tracking-wide uppercase text-white">REPORTE FINANCIERO</h1>
+            <p class="text-zinc-400">Resumen de utilidades del mes actual (${today.toLocaleString('es-ES', { month: 'long', year: 'numeric' })})</p>
           </div>
           
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div class="glass rounded-2xl p-6 relative overflow-hidden group">
-              <div class="absolute -right-4 -top-4 p-4 opacity-5 group-hover:opacity-10 transition transform group-hover:scale-110">
-                 <i data-lucide="calendar" class="w-24 h-24 text-white"></i>
-              </div>
-              <p class="text-sm text-zinc-400 font-medium mb-1">Ventas de Hoy</p>
-              <p class="font-display text-4xl text-white">${dailySales}$</p>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-zinc-800/80 border border-zinc-700 rounded-2xl p-6">
+              <p class="text-xs text-zinc-400 font-bold uppercase tracking-widest mb-2"><i data-lucide="arrow-up-circle" class="w-4 h-4 inline text-green-400 mr-1"></i> Ingreso Bruto</p>
+              <p class="font-display text-3xl text-white">$${monthlySales.toFixed(2)}</p>
             </div>
             
-            <div class="glass rounded-2xl p-6 relative overflow-hidden group">
-              <div class="absolute -right-4 -top-4 p-4 opacity-5 group-hover:opacity-10 transition transform group-hover:scale-110">
-                 <i data-lucide="bar-chart-2" class="w-24 h-24 text-white"></i>
-              </div>
-              <p class="text-sm text-zinc-400 font-medium mb-1">Últimos 7 Días</p>
-              <p class="font-display text-4xl text-white">${weeklySales}$</p>
+            <div class="bg-red-500/5 border border-red-500/20 rounded-2xl p-6">
+              <p class="text-xs text-red-400 font-bold uppercase tracking-widest mb-2"><i data-lucide="users" class="w-4 h-4 inline mr-1"></i> Nóminas</p>
+              <p class="font-display text-3xl text-red-400">-$${monthlyPayroll.toFixed(2)}</p>
             </div>
             
-            <div class="glass rounded-2xl p-6 relative overflow-hidden group">
-              <div class="absolute -right-4 -top-4 p-4 opacity-5 group-hover:opacity-10 transition transform group-hover:scale-110">
-                 <i data-lucide="calendar-check" class="w-24 h-24 text-white"></i>
-              </div>
-              <p class="text-sm text-zinc-400 font-medium mb-1">Este Mes</p>
-              <p class="font-display text-4xl text-white">${monthlySales}$</p>
+            <div class="bg-red-500/5 border border-red-500/20 rounded-2xl p-6">
+              <p class="text-xs text-red-400 font-bold uppercase tracking-widest mb-2"><i data-lucide="receipt" class="w-4 h-4 inline mr-1"></i> Gastos</p>
+              <p class="font-display text-3xl text-red-400">-$${monthlyExpenses.toFixed(2)}</p>
             </div>
             
-            <div class="glass rounded-2xl p-6 border border-gold-400/30 relative overflow-hidden group bg-gold-400/5">
-              <div class="absolute -right-4 -top-4 p-4 opacity-10 transition transform group-hover:scale-110">
-                 <i data-lucide="banknote" class="w-24 h-24 text-gold-400"></i>
-              </div>
-              <p class="text-sm text-gold-400 font-medium mb-1">Total Histórico</p>
-              <p class="font-display text-4xl text-gold-400">${totalRev}$</p>
+            <div class="bg-green-500/10 border border-green-500/30 rounded-2xl p-6 relative overflow-hidden">
+              <p class="text-xs text-green-400 font-bold uppercase tracking-widest mb-2 relative z-10"><i data-lucide="landmark" class="w-4 h-4 inline mr-1"></i> Utilidad Neta</p>
+              <p class="font-display text-4xl text-green-400 relative z-10">$${netProfit.toFixed(2)}</p>
+              <i data-lucide="trending-up" class="w-24 h-24 text-green-500/10 absolute -right-4 -bottom-4"></i>
             </div>
           </div>
           
           <div class="glass rounded-2xl p-6 border border-zinc-700/50">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
               <h3 class="text-white font-medium flex items-center gap-2">
-                <i data-lucide="trending-up" class="w-5 h-5 text-gold-400"></i>
-                <span id="chart-title">Ingresos de los últimos 7 días</span>
+                <i data-lucide="bar-chart-2" class="w-5 h-5 text-gold-400"></i>
+                <span id="chart-title">Comparativa de Ingresos vs Gastos</span>
               </h3>
-              
-              <div class="flex bg-zinc-800/80 p-1 rounded-lg border border-zinc-700/50">
+              <div class="flex bg-zinc-800/80 p-1 rounded-lg border border-zinc-700/50 overflow-x-auto custom-scrollbar">
                 <button id="btn-chart-week" onclick="window.updateSalesChart('week')" class="chart-btn px-4 py-1.5 text-xs font-medium rounded-md transition-all">7 Días</button>
                 <button id="btn-chart-month" onclick="window.updateSalesChart('month')" class="chart-btn px-4 py-1.5 text-xs font-medium rounded-md transition-all">30 Días</button>
-                <button id="btn-chart-year" onclick="window.updateSalesChart('year')" class="chart-btn px-4 py-1.5 text-xs font-medium rounded-md transition-all">Este Año</button>
+                <button id="btn-chart-year" onclick="window.updateSalesChart('year')" class="chart-btn px-4 py-1.5 text-xs font-medium rounded-md transition-all">12 Meses</button>
               </div>
             </div>
-            
-            <div class="w-full h-72 relative">
-              <canvas id="salesChart"></canvas>
-            </div>
+            <div class="w-full h-72 relative"><canvas id="salesChart"></canvas></div>
           </div>
         </div>
       `;
     }
 
     // Función para actualizar y dibujar la gráfica según el filtro seleccionado
-    // Función para actualizar y dibujar la gráfica conectada a la Marca Blanca
     window.updateSalesChart = (period) => {
       const completedAppointments = window.appData.appointments.filter(a => a.status === 'completed');
+      const expenses = window.appData.expenses || [];
+      const barbers = window.appData.barbers || [];
+      
+      // Función para sacar el precio del servicio
       const getPrice = (apt) => {
-        const s = window.appData.services.find(ser => ser.id === apt.service_name || ser.__backendId === apt.service_name);
+        const s = window.appData.services.find(ser => (ser.id || ser.__backendId) === apt.service_name);
         return s && s.price ? Number(s.price) : 0;
       };
 
-      // Leer el color de la marca blanca para la gráfica
+      // NUEVO: Función para calcular cuánto le toca al barbero en ese corte exacto
+      const getCommission = (apt) => {
+        const barber = barbers.find(b => (b.id || b.__backendId) === apt.barber_id);
+        const comm = barber ? (barber.commission || 50) : 50;
+        return (getPrice(apt) * comm) / 100;
+      };
+
       const localBrand = JSON.parse(localStorage.getItem('barber_branding') || 'null');
       const chartColor = (localBrand && localBrand.primaryColor) ? localBrand.primaryColor : '#D4AF37';
-      
-      // Función para darle transparencia al color de fondo de la gráfica
       const hexToRgba = (hex, alpha) => {
-          const r = parseInt(hex.slice(1, 3), 16);
-          const g = parseInt(hex.slice(3, 5), 16);
-          const b = parseInt(hex.slice(5, 7), 16);
+          const r = parseInt(hex.slice(1, 3), 16); const g = parseInt(hex.slice(3, 5), 16); const b = parseInt(hex.slice(5, 7), 16);
           return `rgba(${r}, ${g}, ${b}, ${alpha})`;
       };
 
       let labels = [];
-      let data = [];
+      let dataIngresos = [];
+      let dataNominas = []; // Nueva lista para la gráfica
+      let dataGastos = [];
       const today = new Date();
-      let chartTitle = '';
 
       if (period === 'week') {
-        chartTitle = 'Ingresos de los últimos 7 días';
         for (let i = 6; i >= 0; i--) {
           const d = new Date(); d.setDate(today.getDate() - i);
           const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
           labels.push(d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }));
-          data.push(completedAppointments.filter(a => a.date === dateStr).reduce((sum, a) => sum + getPrice(a), 0));
+          
+          const dailyApts = completedAppointments.filter(a => a.date === dateStr);
+          dataIngresos.push(dailyApts.reduce((sum, a) => sum + getPrice(a), 0));
+          dataNominas.push(dailyApts.reduce((sum, a) => sum + getCommission(a), 0));
+          dataGastos.push(expenses.filter(e => e.date === dateStr).reduce((sum, e) => sum + Number(e.amount), 0));
         }
       } else if (period === 'month') {
-        chartTitle = 'Ingresos de los últimos 30 días';
         for (let i = 29; i >= 0; i--) {
           const d = new Date(); d.setDate(today.getDate() - i);
           const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
           labels.push(d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }));
-          data.push(completedAppointments.filter(a => a.date === dateStr).reduce((sum, a) => sum + getPrice(a), 0));
+          
+          const dailyApts = completedAppointments.filter(a => a.date === dateStr);
+          dataIngresos.push(dailyApts.reduce((sum, a) => sum + getPrice(a), 0));
+          dataNominas.push(dailyApts.reduce((sum, a) => sum + getCommission(a), 0));
+          dataGastos.push(expenses.filter(e => e.date === dateStr).reduce((sum, e) => sum + Number(e.amount), 0));
         }
       } else if (period === 'year') {
-        chartTitle = `Ingresos del año ${today.getFullYear()}`;
-        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-        labels = monthNames;
-        data = new Array(12).fill(0);
-        completedAppointments.forEach(a => {
-           const aptDate = new Date(a.date + "T00:00:00");
-           if(aptDate.getFullYear() === today.getFullYear()) {
-              data[aptDate.getMonth()] += getPrice(a);
-           }
-        });
+        for (let i = 11; i >= 0; i--) {
+          const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+          const targetMonth = d.getMonth();
+          const targetYear = d.getFullYear();
+          
+          labels.push(d.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }).replace('.', ''));
+          
+          const monthApts = completedAppointments.filter(a => {
+              const ad = new Date(a.date + "T00:00:00");
+              return ad.getMonth() === targetMonth && ad.getFullYear() === targetYear;
+          });
+          
+          dataIngresos.push(monthApts.reduce((sum, a) => sum + getPrice(a), 0));
+          dataNominas.push(monthApts.reduce((sum, a) => sum + getCommission(a), 0));
+          
+          dataGastos.push(expenses.filter(e => {
+              const ed = new Date(e.date + "T00:00:00");
+              return ed.getMonth() === targetMonth && ed.getFullYear() === targetYear;
+          }).reduce((sum, e) => sum + Number(e.amount), 0));
+        }
       }
 
-      // Actualizar texto del título
-      const titleEl = document.getElementById('chart-title');
-      if (titleEl) titleEl.innerText = chartTitle;
-
-      // Actualizar estilos de los botones (Filtro Activo)
+      // Animación de los botones
       document.querySelectorAll('.chart-btn').forEach(btn => {
          btn.classList.remove('bg-gold-400', 'text-zinc-900', 'shadow-sm');
          btn.classList.add('text-zinc-400', 'hover:text-white');
       });
       const activeBtn = document.getElementById(`btn-chart-${period}`);
-      if (activeBtn) {
-         activeBtn.classList.remove('text-zinc-400', 'hover:text-white');
-         activeBtn.classList.add('bg-gold-400', 'text-zinc-900', 'shadow-sm');
-      }
+      if (activeBtn) activeBtn.classList.add('bg-gold-400', 'text-zinc-900', 'shadow-sm');
 
-      // Dibujar la gráfica con Chart.js
+      // Dibujar la Gráfica con Chart.js
       const ctx = document.getElementById('salesChart');
       if (ctx && window.Chart) {
         if (window.salesChartInstance) window.salesChartInstance.destroy();
@@ -2456,60 +2604,242 @@ onAuthStateChanged(auth, async (user) => {
           type: 'line',
           data: {
             labels: labels,
-            datasets: [{
-              label: 'Ingresos ($)',
-              data: data,
-              backgroundColor: hexToRgba(chartColor, 0.15), // Relleno transparente dinámico
-              borderColor: chartColor, // Línea dinámica
-              borderWidth: 3,
-              pointBackgroundColor: '#18181b', 
-              pointBorderColor: chartColor, // Puntos dinámicos
-              pointBorderWidth: 2,
-              pointRadius: period === 'month' ? 2 : 4,
-              pointHoverRadius: 6,
-              fill: true,
-              tension: 0.4
-            }]
+            datasets: [
+              {
+                label: 'Ingreso Bruto ($)',
+                data: dataIngresos,
+                backgroundColor: hexToRgba(chartColor, 0.15),
+                borderColor: chartColor,
+                borderWidth: 3,
+                pointBackgroundColor: '#18181b', pointBorderColor: chartColor, pointBorderWidth: 2,
+                pointRadius: period === 'month' ? 1 : 4,
+                fill: true, tension: 0.4
+              },
+              {
+                label: 'Nóminas ($)',
+                data: dataNominas,
+                backgroundColor: 'transparent',
+                borderColor: '#EF4444', // Rojo
+                borderWidth: 2,
+                borderDash: [5, 5], // Línea punteada para diferenciarla
+                pointBackgroundColor: '#18181b', pointBorderColor: '#EF4444', pointBorderWidth: 2,
+                pointRadius: period === 'month' ? 1 : 3,
+                fill: false, tension: 0.4
+              },
+              {
+                label: 'Gastos Operativos ($)',
+                data: dataGastos,
+                backgroundColor: 'transparent', 
+                borderColor: '#F97316', // Naranja
+                borderWidth: 2,
+                pointBackgroundColor: '#18181b', pointBorderColor: '#F97316', pointBorderWidth: 2,
+                pointRadius: period === 'month' ? 1 : 3,
+                fill: false, tension: 0.4
+              }
+            ]
           },
           options: {
-            responsive: true,
-            maintainAspectRatio: false,
+            responsive: true, maintainAspectRatio: false,
             plugins: { 
-              legend: { display: false },
-              tooltip: {
-                backgroundColor: 'rgba(24, 24, 27, 0.9)',
-                titleColor: chartColor, // Título del tooltip dinámico
-                bodyColor: '#fff',
-                borderColor: hexToRgba(chartColor, 0.3), // Borde del tooltip dinámico
-                borderWidth: 1,
-                padding: 10,
-                displayColors: false,
-                callbacks: {
-                  label: function(context) { return '$' + context.parsed.y; }
-                }
-              }
+              legend: { display: true, labels: { color: '#a1a1aa', usePointStyle: true, boxWidth: 8 } },
+              tooltip: { mode: 'index', intersect: false }
             },
             scales: {
-              y: {
-                beginAtZero: true,
-                grid: { color: 'rgba(255, 255, 255, 0.05)' }, 
-                ticks: { color: '#a1a1aa' } 
-              },
-              x: {
-                grid: { display: false },
-                ticks: { 
-                  color: '#a1a1aa',
-                  maxTicksLimit: period === 'month' ? 10 : 12 
-                } 
-              }
+              y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a1a1aa' } },
+              x: { grid: { display: false }, ticks: { color: '#a1a1aa', maxTicksLimit: period === 'month' ? 10 : 12 } }
             }
           }
         });
       }
     };
+
+    // ==========================================
+    // --- MÓDULO DE PROMOCIONES (ADMIN) ---
+    // ==========================================
     function renderPromotionsAdmin() {
-      return `<div class="p-6"><h1 class="font-display text-3xl text-white mb-4">Módulo de Promociones Admin</h1><p class="text-zinc-400">Implementa la subida de datos a la colección 'promotions' aquí.</p></div>`;
+      const promos = window.appData.promotions || [];
+      
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="flex justify-between items-center mb-6">
+            <h1 class="font-display text-3xl text-white tracking-wide uppercase">PROMOCIONES</h1>
+            <button onclick="window.showAddPromotionModal()" class="gradient-gold text-zinc-900 px-4 py-2 rounded-xl font-bold transition hover:opacity-90 flex items-center gap-2 shadow-lg">
+              <i data-lucide="plus" class="w-5 h-5"></i> Crear Promoción
+            </button>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            ${promos.length > 0 ? promos.map(p => `
+              <div class="glass rounded-2xl overflow-hidden group border border-zinc-700/50 relative hover:border-gold-400/30 transition">
+                <div class="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  <button onclick="window.showEditPromotionModal('${p.id || p.__backendId}')" class="bg-zinc-900/80 hover:bg-gold-400 hover:text-zinc-900 text-white p-2 rounded-lg transition backdrop-blur-sm" title="Editar">
+                    <i data-lucide="edit-2" class="w-4 h-4"></i>
+                  </button>
+                  <button onclick="window.deletePromotion('${p.id || p.__backendId}')" class="bg-zinc-900/80 hover:bg-red-500/80 text-red-400 hover:text-white p-2 rounded-lg transition backdrop-blur-sm" title="Eliminar">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                  </button>
+                </div>
+                <div class="gradient-gold p-6 text-center">
+                  <p class="font-display text-5xl text-zinc-900">${p.discount}%</p>
+                  <p class="text-zinc-900 font-bold uppercase tracking-widest text-xs mt-1">Descuento</p>
+                </div>
+                <div class="p-6">
+                  <p class="text-white mb-3 text-lg font-medium">${p.description}</p>
+                  <div class="flex items-center justify-between mt-4 pt-4 border-t border-zinc-700/50">
+                    <code class="text-gold-400 font-mono font-bold bg-gold-400/10 px-3 py-1 rounded-lg border border-gold-400/20">${p.code}</code>
+                    <p class="text-xs text-zinc-400 flex items-center gap-1"><i data-lucide="calendar" class="w-3 h-3"></i> Vence: ${formatDate(p.validUntil)}</p>
+                  </div>
+                </div>
+              </div>
+            `).join('') : `
+              <div class="col-span-1 md:col-span-3 text-center py-16 bg-zinc-800/30 rounded-2xl border border-zinc-700/50">
+                <i data-lucide="percent" class="w-16 h-16 text-zinc-600 mx-auto mb-4"></i>
+                <p class="text-zinc-400 text-xl font-medium">No has creado ninguna promoción</p>
+                <p class="text-zinc-500 text-sm mt-2">Atrae más clientes ofreciendo códigos de descuento.</p>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
     }
+
+    // Modal para Crear Promoción
+    window.showAddPromotionModal = () => {
+      window.showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="font-display text-2xl text-white tracking-wide uppercase">NUEVA PROMOCIÓN</h2>
+            <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
+          </div>
+          <div class="space-y-4 mb-6">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm text-zinc-400 mb-2">Código (Ej. VIP20)</label>
+                  <input type="text" id="promo-code" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-gold-400 font-mono font-bold uppercase tracking-widest focus:border-gold-400 focus:outline-none">
+                </div>
+                <div>
+                  <label class="block text-sm text-zinc-400 mb-2">Descuento (%)</label>
+                  <input type="number" id="promo-discount" placeholder="15" min="1" max="100" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+                </div>
+            </div>
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Descripción o Condiciones</label>
+              <input type="text" id="promo-desc" placeholder="Ej: Válido en todos los cortes los días martes" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Fecha Límite</label>
+              <input type="date" id="promo-date" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none [color-scheme:dark]">
+            </div>
+          </div>
+          <button id="btn-save-promo" onclick="window.saveNewPromotion()" class="w-full gradient-gold text-zinc-900 py-4 rounded-xl font-bold hover:opacity-90 transition flex items-center justify-center gap-2 shadow-lg">
+              <i data-lucide="save" class="w-5 h-5"></i> Guardar Promoción
+          </button>
+        </div>
+      `);
+    }
+
+    // Lógica Firebase Guardar Promoción
+    window.saveNewPromotion = async () => {
+      const code = document.getElementById('promo-code').value.trim().toUpperCase();
+      const desc = document.getElementById('promo-desc').value.trim();
+      const discount = document.getElementById('promo-discount').value;
+      const date = document.getElementById('promo-date').value;
+      const btn = document.getElementById('btn-save-promo');
+
+      if(!code || !desc || !discount || !date) return showToast('Todos los campos son obligatorios', 'error');
+
+      try {
+        if(btn) btn.innerHTML = 'Guardando...';
+        await addDoc(collection(db, "promotions"), { 
+            code: code, 
+            description: desc, 
+            discount: Number(discount), 
+            validUntil: date, 
+            created_at: new Date().toISOString()
+        });
+        window.closeModal(); 
+        showToast('Promoción creada con éxito', 'success');
+      } catch(e) { 
+        showToast('Error al guardar la promoción', 'error'); 
+        if(btn) { btn.innerHTML = '<i data-lucide="save" class="w-5 h-5"></i> Guardar Promoción'; lucide.createIcons(); }
+      }
+    }
+
+    // Modal para Editar Promoción
+    window.showEditPromotionModal = (id) => {
+      const promo = window.appData.promotions.find(p => (p.id || p.__backendId) === id);
+      if(!promo) return;
+
+      window.showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="font-display text-2xl text-white tracking-wide uppercase">EDITAR PROMOCIÓN</h2>
+            <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
+          </div>
+          <div class="space-y-4 mb-6">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm text-zinc-400 mb-2">Código</label>
+                  <input type="text" id="epromo-code" value="${promo.code}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-gold-400 font-mono font-bold uppercase focus:border-gold-400 focus:outline-none">
+                </div>
+                <div>
+                  <label class="block text-sm text-zinc-400 mb-2">Descuento (%)</label>
+                  <input type="number" id="epromo-discount" value="${promo.discount}" min="1" max="100" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+                </div>
+            </div>
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Descripción breve</label>
+              <input type="text" id="epromo-desc" value="${promo.description}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Fecha de vencimiento</label>
+              <input type="date" id="epromo-date" value="${promo.validUntil}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none [color-scheme:dark]">
+            </div>
+          </div>
+          <button id="btn-update-promo" onclick="window.updatePromotion('${id}')" class="w-full bg-blue-500 hover:bg-blue-400 text-white py-4 rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg">
+              <i data-lucide="edit-2" class="w-5 h-5"></i> Actualizar Cambios
+          </button>
+        </div>
+      `);
+    }
+
+    // Lógica Firebase Actualizar Promoción
+    window.updatePromotion = async (id) => {
+      const code = document.getElementById('epromo-code').value.trim().toUpperCase();
+      const desc = document.getElementById('epromo-desc').value.trim();
+      const discount = document.getElementById('epromo-discount').value;
+      const date = document.getElementById('epromo-date').value;
+      const btn = document.getElementById('btn-update-promo');
+
+      if(!code || !desc || !discount || !date) return showToast('Todos los campos son obligatorios', 'error');
+
+      try {
+        if(btn) btn.innerHTML = 'Actualizando...';
+        await updateDoc(doc(db, "promotions", id), { 
+            code: code, 
+            description: desc, 
+            discount: Number(discount), 
+            validUntil: date 
+        });
+        window.closeModal(); 
+        showToast('Promoción actualizada', 'success');
+      } catch(e) { 
+          showToast('Error al actualizar', 'error'); 
+      }
+    }
+
+    // Lógica Firebase Eliminar Promoción
+    window.deletePromotion = async (id) => {
+        if(confirm('¿Estás seguro de eliminar esta promoción permanentemente?')) {
+            try {
+                await deleteDoc(doc(db, "promotions", id));
+                showToast('Promoción eliminada', 'success');
+            } catch(e) { 
+                showToast('Error al eliminar', 'error'); 
+            }
+        }
+    }
+   
 // --- GESTIÓN DE SUCURSALES (ADMIN) ---
 function renderBranches() {
       return `
@@ -3444,6 +3774,162 @@ function renderBranches() {
       `;
     }
 
+
+    // ==========================================
+    // --- MÓDULO DE GASTOS (ADMIN) ---
+    // ==========================================
+    function renderExpensesAdmin() {
+      const expenses = window.appData.expenses || [];
+      
+      // Ordenar por fecha (más recientes primero)
+      expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      // Calcular total del mes actual
+      const today = new Date();
+      const currentMonth = today.getMonth();
+      const currentYear = today.getFullYear();
+      
+      const thisMonthExpenses = expenses.filter(e => {
+          const eDate = new Date(e.date + "T00:00:00");
+          return eDate.getMonth() === currentMonth && eDate.getFullYear() === currentYear;
+      });
+      const totalMonth = thisMonthExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+
+      return `
+        <div class="p-6 lg:p-8 fade-in">
+          <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div>
+              <h1 class="font-display text-3xl lg:text-4xl text-white uppercase tracking-wide">GASTOS Y COMPRAS</h1>
+              <p class="text-zinc-400">Control de flujo de caja y salidas de dinero</p>
+            </div>
+            
+            <div class="flex items-center gap-4">
+              <div class="bg-red-500/10 border border-red-500/30 px-4 py-2 rounded-xl text-right">
+                <p class="text-[10px] text-red-400 uppercase tracking-widest font-bold">Total Este Mes</p>
+                <p class="font-display text-2xl text-red-400">$${totalMonth.toFixed(2)}</p>
+              </div>
+              <button onclick="window.showAddExpenseModal()" class="gradient-gold text-zinc-900 px-4 py-3 rounded-xl font-bold transition hover:opacity-90 flex items-center gap-2 shadow-lg">
+                <i data-lucide="plus" class="w-5 h-5"></i> Registrar Gasto
+              </button>
+            </div>
+          </div>
+          
+          <div class="glass rounded-3xl overflow-hidden border border-zinc-700/50 shadow-2xl">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left min-w-[700px]">
+                  <thead class="bg-zinc-800/80 text-zinc-400 text-xs uppercase tracking-widest">
+                    <tr>
+                      <th class="px-6 py-4">Fecha</th>
+                      <th class="px-6 py-4">Descripción</th>
+                      <th class="px-6 py-4">Categoría</th>
+                      <th class="px-6 py-4 text-right">Monto</th>
+                      <th class="px-6 py-4 text-center">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-zinc-700/30">
+                    ${expenses.length > 0 ? expenses.map(e => `
+                      <tr class="text-white hover:bg-zinc-800/50 transition">
+                        <td class="py-4 px-6 text-zinc-400"><i data-lucide="calendar" class="w-3 h-3 inline mr-2"></i>${formatDate(e.date)}</td>
+                        <td class="py-4 px-6 font-medium">${e.description}</td>
+                        <td class="py-4 px-6">
+                            <span class="bg-zinc-700 px-2 py-1 rounded-md text-xs text-zinc-300 border border-zinc-600">${e.category}</span>
+                        </td>
+                        <td class="py-4 px-6 text-right font-display text-xl text-red-400">-$${Number(e.amount).toFixed(2)}</td>
+                        <td class="py-4 px-6 text-center">
+                          <button onclick="window.deleteExpense('${e.id || e.__backendId}')" class="text-zinc-500 hover:text-red-400 transition bg-zinc-900 p-2 rounded-lg border border-zinc-700 hover:border-red-500/30">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                          </button>
+                        </td>
+                      </tr>
+                    `).join('') : `<tr><td colspan="5" class="text-center py-12 text-zinc-500">No hay gastos registrados.</td></tr>`}
+                  </tbody>
+                </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    window.showAddExpenseModal = () => {
+      const today = new Date().toISOString().split('T')[0];
+      
+      window.showModal(`
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="font-display text-2xl text-white tracking-wide uppercase">REGISTRAR GASTO</h2>
+            <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
+          </div>
+          
+          <div class="space-y-4 mb-6">
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Descripción del Gasto</label>
+              <input type="text" id="expense-desc" placeholder="Ej: Recibo de Luz, Pomadas, Renta..." class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-red-400 focus:outline-none">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Monto ($)</label>
+                <input type="number" id="expense-amount" placeholder="0.00" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-red-400 font-bold focus:border-red-400 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-sm text-zinc-400 mb-2">Categoría</label>
+                <select id="expense-cat" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-red-400 focus:outline-none appearance-none">
+                  <option value="Insumos">Insumos/Productos</option>
+                  <option value="Servicios">Servicios (Luz, Agua, Internet)</option>
+                  <option value="Renta">Renta</option>
+                  <option value="Mantenimiento">Mantenimiento</option>
+                  <option value="Otros">Otros</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm text-zinc-400 mb-2">Fecha del Gasto</label>
+              <input type="date" id="expense-date" value="${today}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-red-400 focus:outline-none [color-scheme:dark]">
+            </div>
+          </div>
+          
+          <button id="btn-save-expense" onclick="window.saveExpense()" class="w-full bg-red-500 hover:bg-red-400 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2">
+            <i data-lucide="save" class="w-5 h-5"></i> Registrar Salida de Dinero
+          </button>
+        </div>
+      `);
+    };
+
+    window.saveExpense = async () => {
+      const desc = document.getElementById('expense-desc').value.trim();
+      const amount = document.getElementById('expense-amount').value;
+      const cat = document.getElementById('expense-cat').value;
+      const date = document.getElementById('expense-date').value;
+      const btn = document.getElementById('btn-save-expense');
+
+      if (!desc || !amount || !date) return showToast('Completa todos los campos', 'error');
+
+      try {
+        btn.innerHTML = 'Guardando...';
+        await addDoc(collection(db, "expenses"), {
+            description: desc,
+            amount: Number(amount),
+            category: cat,
+            date: date,
+            created_at: new Date().toISOString(),
+            branch_id: window.currentUser.branch_id || 'main'
+        });
+        window.closeModal();
+        showToast('Gasto registrado', 'success');
+      } catch (error) {
+        showToast('Error al guardar', 'error');
+        btn.innerHTML = 'Registrar Salida';
+      }
+    };
+
+    window.deleteExpense = async (id) => {
+      if(confirm('¿Eliminar este registro de gasto? Se recalcularán tus utilidades.')) {
+        try {
+          await deleteDoc(doc(db, "expenses", id));
+          showToast('Gasto eliminado', 'success');
+        } catch(e) { showToast('Error', 'error'); }
+      }
+    };
+
     // Cambiar la fecha leyendo el calendario nativo del navegador
     window.updateSalesDateFromInput = () => {
         window.adminSalesDate = document.getElementById('admin-sales-date').value;
@@ -3709,10 +4195,17 @@ function renderBranches() {
           <div class="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-6">
             <div>
                 <h1 class="font-display text-3xl lg:text-4xl text-white uppercase tracking-wide">CÁLCULO DE NÓMINAS</h1>
-                <div class="flex items-center gap-3 bg-zinc-800/80 p-2 rounded-xl inline-flex border border-zinc-700/50 mt-2">
-                  <input type="date" id="payroll-start" value="${startDate}" onchange="window.updatePayrollDates()" class="bg-transparent text-zinc-300 font-medium focus:outline-none cursor-pointer [color-scheme:dark] px-2 text-sm">
+                
+                <div class="flex gap-2 mt-3 mb-2">
+                    <button onclick="window.setPayrollRange('today')" class="bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-zinc-300 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 transition font-bold shadow-sm">Pago Diario</button>
+                    <button onclick="window.setPayrollRange('week')" class="bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-zinc-300 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 transition font-bold shadow-sm">Semanal</button>
+                    <button onclick="window.setPayrollRange('month')" class="bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-zinc-300 text-xs px-3 py-1.5 rounded-lg border border-zinc-700 transition font-bold shadow-sm">Mensual</button>
+                </div>
+
+                <div class="flex items-center gap-3 bg-zinc-800/80 p-2 rounded-xl inline-flex border border-zinc-700/50">
+                  <input type="date" id="payroll-start" value="${startDate}" onchange="window.updatePayrollDates()" class="bg-transparent text-zinc-300 font-medium focus:outline-none cursor-pointer [color-scheme:dark] px-2 text-sm" title="Fecha de inicio">
                   <span class="text-gold-400 font-bold">AL</span>
-                  <input type="date" id="payroll-end" value="${endDate}" onchange="window.updatePayrollDates()" class="bg-transparent text-zinc-300 font-medium focus:outline-none cursor-pointer [color-scheme:dark] px-2 text-sm">
+                  <input type="date" id="payroll-end" value="${endDate}" onchange="window.updatePayrollDates()" class="bg-transparent text-zinc-300 font-medium focus:outline-none cursor-pointer [color-scheme:dark] px-2 text-sm" title="Fecha de corte">
                 </div>
             </div>
             
@@ -3765,6 +4258,67 @@ function renderBranches() {
         renderCurrentView();
     }
 
+    // ==========================================
+    // --- CONTROLADOR INTELIGENTE DE FECHAS DE NÓMINA ---
+    // ==========================================
+    window.setPayrollRange = (type) => {
+        const today = new Date();
+        
+        // Función para formatear fechas en formato YYYY-MM-DD (Segura)
+        const formatDateForInput = (d) => {
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        };
+        
+        if (type === 'today') {
+            // PAGO DIARIO: Del día de hoy al día de hoy
+            window.payrollStartDate = formatDateForInput(today);
+            window.payrollEndDate = formatDateForInput(today);
+            
+        } else if (type === 'week') {
+            // PAGO SEMANAL: De Lunes a Domingo
+            const startOfWeek = new Date(today); // ¡CLONAMOS la fecha para evitar bugs!
+            const day = startOfWeek.getDay(); 
+            const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // Ajustar al lunes
+            startOfWeek.setDate(diff);
+            
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(startOfWeek.getDate() + 6);
+            
+            window.payrollStartDate = formatDateForInput(startOfWeek);
+            window.payrollEndDate = formatDateForInput(endOfWeek);
+            
+        } else if (type === 'month') {
+            // PAGO MENSUAL: Del día 1 al último día del mes actual
+            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            
+            window.payrollStartDate = formatDateForInput(startOfMonth);
+            window.payrollEndDate = formatDateForInput(endOfMonth);
+        }
+        
+        // Recargamos la vista para que recalcule todo con las nuevas fechas
+        renderCurrentView();
+    };
+
+    // --- FUNCIÓN PARA ESTABLECER FECHAS MANUALES ---
+    window.updatePayrollDates = () => {
+        const start = document.getElementById('payroll-start').value;
+        const end = document.getElementById('payroll-end').value;
+        
+        if (start && end) {
+            if (start > end) {
+                showToast('La fecha de inicio debe ser antes que la de fin', 'warning');
+                return;
+            }
+            // Vinculamos las fechas manuales al cerebro del sistema
+            window.payrollStartDate = start;
+            window.payrollEndDate = end;
+            
+            // Recalculamos toda la tabla y los cortes de los barberos
+            renderCurrentView(); 
+        }
+    };
+
     // --- EDICIÓN RÁPIDA DE COMISIONES DESDE NÓMINA ---
     window.showQuickCommissionModal = (id, name, currentCommission) => {
         window.showModal(`
@@ -3805,8 +4359,6 @@ function renderBranches() {
             });
             window.closeModal();
             showToast('Porcentaje actualizado con éxito', 'success');
-            // Nota: Al actualizar Firebase, el listener en tiempo real 
-            // refrescará la pantalla de nóminas automáticamente.
         } catch(e) {
             showToast('Error al actualizar porcentaje', 'error');
         }
@@ -3817,7 +4369,7 @@ function renderBranches() {
         const barber = window.appData.barbers.find(b => (b.id || b.__backendId) === barberId);
         if(!barber) return;
 
-        // Recuperamos el rango de fechas que está viendo el Admin
+        // Recuperamos el rango de fechas exacto que está viendo el Admin
         const startDate = window.payrollStartDate;
         const endDate = window.payrollEndDate;
 
@@ -3886,73 +4438,85 @@ function renderBranches() {
             </div>
         `);
     }
-    
-    
-// ==========================================
-    // --- LÓGICA DE PAGOS Y RECIBOS ---
+
     // ==========================================
-
+    // --- MOTOR DE PAGOS DE NÓMINA ---
+    // ==========================================
     window.processPayment = async (barberId, barberName) => {
-        if(!confirm(`¿Estás seguro de registrar el pago de ${barberName}? \nEsto descontará el dinero de la "Caja Actual".`)) return;
-
         const startDate = window.payrollStartDate;
         const endDate = window.payrollEndDate;
-        
-        const salesToPay = window.appData.appointments.filter(a => 
-            a.status === 'completed' && a.barber_id === barberId && 
-            a.date >= startDate && a.date <= endDate && 
+
+        // 1. Buscamos todos los cortes completados de este barbero, en este rango de fechas, que NO se hayan pagado aún.
+        const unpaidSales = window.appData.appointments.filter(a => 
+            a.status === 'completed' && 
+            a.barber_id === barberId && 
+            a.date >= startDate && 
+            a.date <= endDate &&
             a.payout_status !== 'paid'
         );
 
-        if(salesToPay.length === 0) return;
+        if (unpaidSales.length === 0) {
+            return showToast('No hay cortes pendientes por pagar en este periodo', 'warning');
+        }
+
+        if (!confirm(`¿Confirmas el pago de comisiones a ${barberName} por ${unpaidSales.length} cortes realizados del ${formatDate(startDate)} al ${formatDate(endDate)}?`)) {
+            return;
+        }
 
         try {
-            document.getElementById('loading-screen').classList.remove('hidden');
-            const updatePromises = salesToPay.map(sale => {
-                return updateDoc(doc(db, "appointments", sale.__backendId), {
-                    payout_status: 'paid',
-                    payout_date: new Date().toISOString()
-                });
-            });
-            await Promise.all(updatePromises);
+            showToast('Procesando pago...', 'info');
             
-            document.getElementById('loading-screen').classList.add('hidden');
-            showToast(`Pago registrado exitosamente.`, 'success');
-            setTimeout(() => { window.showReceipt(barberId); }, 500);
-        } catch(error) {
-            document.getElementById('loading-screen').classList.add('hidden');
-            showToast('Error al procesar el pago', 'error');
+            // 2. Actualizamos cada corte en Firebase para marcarlo como pagado
+            for (let sale of unpaidSales) {
+                const saleId = sale.id || sale.__backendId;
+                await updateDoc(doc(db, "appointments", saleId), { 
+                    payout_status: 'paid',
+                    paid_at: new Date().toISOString() // Guardamos la fecha exacta en la que le pagaste
+                });
+            }
+            
+            showToast(`Pago a ${barberName} registrado correctamente`, 'success');
+            // La pantalla se actualizará sola gracias al listener en tiempo real
+            
+        } catch (error) {
+            console.error("Error al pagar:", error);
+            showToast('Error al registrar el pago en la base de datos', 'error');
         }
     };
 
+    // --- REVERTIR PAGO (Por si te equivocas) ---
     window.undoPayment = async (barberId, barberName) => {
-        if(!confirm(`¿Deseas ANULAR los pagos de ${barberName} en este periodo?`)) return;
-
         const startDate = window.payrollStartDate;
         const endDate = window.payrollEndDate;
-        
+
+        // Buscamos los cortes que YA están pagados en este periodo
         const paidSales = window.appData.appointments.filter(a => 
-            a.status === 'completed' && a.barber_id === barberId && 
-            a.date >= startDate && a.date <= endDate && 
+            a.status === 'completed' && 
+            a.barber_id === barberId && 
+            a.date >= startDate && 
+            a.date <= endDate &&
             a.payout_status === 'paid'
         );
 
+        if (paidSales.length === 0) return;
+
+        if (!confirm(`¿Estás seguro de REVERTIR el pago de ${barberName}? Esto volverá a poner el dinero como 'Deuda Pendiente'.`)) {
+            return;
+        }
+
         try {
-            document.getElementById('loading-screen').classList.remove('hidden');
-            const updatePromises = paidSales.map(sale => {
-                return updateDoc(doc(db, "appointments", sale.__backendId), {
-                    payout_status: '',
-                    payout_date: ''
+            for (let sale of paidSales) {
+                const saleId = sale.id || sale.__backendId;
+                await updateDoc(doc(db, "appointments", saleId), { 
+                    payout_status: 'pending' 
                 });
-            });
-            await Promise.all(updatePromises);
-            document.getElementById('loading-screen').classList.add('hidden');
-            showToast('Pago revertido con éxito.', 'success');
-        } catch(error) {
-            document.getElementById('loading-screen').classList.add('hidden');
-            showToast('Error al revertir', 'error');
+            }
+            showToast('Pago revertido con éxito', 'success');
+        } catch (error) {
+            showToast('Error al revertir el pago', 'error');
         }
     };
+
 
     window.showReceipt = (barberId) => {
         const barber = window.appData.barbers.find(b => (b.id || b.__backendId) === barberId);
@@ -4450,6 +5014,8 @@ function renderBranches() {
         }
       }
     }
+
+
 
     // ==========================================
     // --- MOSTRAR/OCULTAR CONTRASEÑA ---
