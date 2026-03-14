@@ -2154,75 +2154,106 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     // --- ADMIN VIEWS ---
-    function renderAllAppointments() {
-      const allAppts = window.appData.appointments.sort((a,b) => new Date(b.date) - new Date(a.date));
-      const activeServices = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
-      const barbers = window.appData.barbers.length > 0 ? window.appData.barbers : defaultBarbersFallback;
-      return `
-        <div class="p-6 lg:p-8 fade-in">
-          <div class="mb-8"><h1 class="font-display text-3xl text-white">TODAS LAS CITAS</h1></div>
-          <div class="glass rounded-2xl p-6 overflow-x-auto">
-            <table class="w-full min-w-[800px] text-left">
-              <thead class="text-zinc-400 border-b border-zinc-700"><tr><th class="pb-3">Cliente</th><th class="pb-3">Servicio</th><th class="pb-3">Barbero</th><th class="pb-3">Fecha</th><th class="pb-3">Estado</th></tr></thead>
-              <tbody class="divide-y divide-zinc-700/50">
-                ${allAppts.map(apt => {
-                  const s = activeServices.find(ser => ser.id === apt.service_name) || {name: apt.service_name};
-                  const b = barbers.find(bar => bar.id === apt.barber_id) || {name: 'N/A'};
-                  return `<tr class="text-white"><td class="py-3">${apt.notes}</td><td class="py-3">${s.name}</td><td class="py-3">${b.name}</td><td class="py-3">${apt.date} ${apt.time}</td><td class="py-3"><span class="px-2 py-1 rounded text-xs ${getStatusColor(apt.status)}">${getStatusLabel(apt.status)}</span></td></tr>`;
-                }).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      `;
-    }
-
-    function renderServicesAdmin() {
-      // Tomamos los servicios de Firebase
-      const services = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+   // --- ADMIN VIEWS ---
+   function renderAllAppointments() {
+      // Ordenamos por fecha y hora (más recientes primero)
+      const allAppts = window.appData.appointments.sort((a,b) => {
+          const dateA = new Date(a.date + 'T' + (a.time || '00:00'));
+          const dateB = new Date(b.date + 'T' + (b.time || '00:00'));
+          return dateB - dateA;
+      });
+      
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : window.defaultServicesFallback || [];
+      const barbers = window.appData.barbers.length > 0 ? window.appData.barbers : window.defaultBarbersFallback || [];
       
       return `
-        <div class="p-6 lg:p-8 fade-in">
-          <div class="flex justify-between items-center mb-6">
-            <h1 class="font-display text-3xl text-white tracking-wide uppercase">SERVICIOS</h1>
-            <button onclick="window.showAddServiceModal()" class="gradient-gold text-zinc-900 px-4 py-2 rounded-xl font-bold transition hover:opacity-90 flex items-center gap-2">
-              <i data-lucide="plus" class="w-5 h-5"></i> Añadir Servicio
-            </button>
+        <div class="p-4 md:p-6 lg:p-8 fade-in">
+          <div class="mb-6 md:mb-8">
+            <h1 class="font-display text-3xl md:text-4xl text-white uppercase tracking-wide">TODAS LAS CITAS</h1>
+            <p class="text-zinc-400 mt-1">Historial completo de todas las reservas y ventas</p>
           </div>
           
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            ${services.length > 0 ? services.map(s => `
-              <div class="flex justify-between items-center bg-zinc-800/80 hover:bg-zinc-700/80 p-5 rounded-xl transition group border border-zinc-700/50">
-                <div>
-                  <p class="text-white font-bold text-xl mb-1">${s.name}</p>
-                  <p class="text-zinc-400 text-sm mb-2">${s.description || 'Sin descripción'}</p>
-                  <p class="text-zinc-500 text-xs font-medium"><i data-lucide="clock" class="w-3 h-3 inline mr-1"></i>${s.duration} min</p>
-                </div>
-                <div class="flex flex-col items-end gap-3">
-                  <p class="text-gold-400 font-display text-3xl">${s.price}$</p>
-                  
-                  <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onclick="window.showEditServiceModal('${s.id || s.__backendId}')" class="text-zinc-400 hover:text-white bg-zinc-900/80 p-2 rounded-lg transition" title="Editar">
-                      <i data-lucide="edit-2" class="w-4 h-4"></i>
-                    </button>
-                    <button onclick="window.deleteService('${s.id || s.__backendId}')" class="text-zinc-400 hover:text-red-400 bg-zinc-900/80 p-2 rounded-lg transition" title="Eliminar">
-                      <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </button>
-                  </div>
-                </div>
+          <div class="glass rounded-2xl p-4 md:p-6">
+            ${allAppts.length > 0 ? `
+              
+              <div class="hidden md:block overflow-x-auto">
+                <table class="w-full text-left min-w-[800px]">
+                  <thead class="text-zinc-400 border-b border-zinc-700 text-xs uppercase tracking-widest">
+                    <tr>
+                      <th class="pb-4 px-4 font-medium">Fecha y Hora</th>
+                      <th class="pb-4 px-4 font-medium">Cliente</th>
+                      <th class="pb-4 px-4 font-medium">Servicio</th>
+                      <th class="pb-4 px-4 font-medium">Barbero</th>
+                      <th class="pb-4 px-4 font-medium text-right">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-zinc-700/50">
+                    ${allAppts.map(apt => {
+                      const s = activeServices.find(ser => (ser.id || ser.__backendId) === apt.service_name) || {name: 'Servicio eliminado'};
+                      const b = barbers.find(bar => (bar.id || bar.__backendId) === apt.barber_id) || {name: 'No asignado'};
+                      const clientName = apt.client_id === 'walk-in' ? (apt.notes || 'Cliente Directo') : (apt.notes || 'Cliente');
+                      const isWalkIn = apt.client_id === 'walk-in';
+                      const badgeHtml = isWalkIn ? '<span class="text-[10px] text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded uppercase tracking-wider font-bold ml-2">Directo</span>' : '';
+                      
+                      return `
+                      <tr class="text-white hover:bg-zinc-800/30 transition">
+                        <td class="py-4 px-4">
+                            <div class="font-medium">${formatDate(apt.date)}</div>
+                            <div class="text-xs text-gold-400 mt-1 font-bold tracking-widest"><i data-lucide="clock" class="w-3 h-3 inline mr-1"></i>${apt.time}</div>
+                        </td>
+                        <td class="py-4 px-4 font-medium">${clientName} ${badgeHtml}</td>
+                        <td class="py-4 px-4 text-zinc-300">${s.name}</td>
+                        <td class="py-4 px-4 text-zinc-400"><i data-lucide="user" class="w-3 h-3 inline mr-1"></i>${b.name}</td>
+                        <td class="py-4 px-4 text-right"><span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${getStatusColor(apt.status)}">${getStatusLabel(apt.status)}</span></td>
+                      </tr>`;
+                    }).join('')}
+                  </tbody>
+                </table>
               </div>
-            `).join('') : `
-              <div class="col-span-1 md:col-span-2 text-center py-12 bg-zinc-800/30 rounded-2xl border border-zinc-700/50">
-                <i data-lucide="scissors" class="w-12 h-12 text-zinc-600 mx-auto mb-4"></i>
-                <p class="text-zinc-400 text-lg">Aún no hay servicios registrados</p>
-                <p class="text-zinc-500 text-sm mt-2">Haz clic en "Añadir Servicio" para comenzar</p>
+              
+              <div class="md:hidden space-y-4">
+                ${allAppts.map(apt => {
+                  const s = activeServices.find(ser => (ser.id || ser.__backendId) === apt.service_name) || {name: 'Servicio eliminado'};
+                  const b = barbers.find(bar => (bar.id || bar.__backendId) === apt.barber_id) || {name: 'No asignado'};
+                  const clientName = apt.client_id === 'walk-in' ? (apt.notes || 'Cliente Directo') : (apt.notes || 'Cliente');
+                  const isWalkIn = apt.client_id === 'walk-in';
+                  
+                  return `
+                    <div class="bg-zinc-800/60 border border-zinc-700/50 p-4 rounded-xl relative hover:border-gold-400/30 transition shadow-sm">
+                      <div class="flex justify-between items-start mb-3">
+                        <div>
+                          <p class="font-display text-2xl text-gold-400 leading-none">${apt.time}</p>
+                          <p class="text-xs text-zinc-400 mt-1"><i data-lucide="calendar" class="w-3 h-3 inline mr-1"></i>${formatDate(apt.date)}</p>
+                        </div>
+                        <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${getStatusColor(apt.status)}">${getStatusLabel(apt.status)}</span>
+                      </div>
+                      
+                      <div class="mb-4">
+                        <p class="text-white font-medium text-lg leading-tight">
+                            ${clientName} 
+                            ${isWalkIn ? '<span class="text-purple-400 text-[10px] bg-purple-500/20 px-1.5 py-0.5 rounded ml-1 uppercase font-bold tracking-widest align-middle">Directo</span>' : ''}
+                        </p>
+                        <p class="text-sm text-zinc-300 mt-1">${s.name}</p>
+                      </div>
+                      
+                      <div class="pt-3 border-t border-zinc-700/50 flex justify-between items-center text-xs text-zinc-400 font-medium">
+                        <span class="flex items-center gap-1"><i data-lucide="scissors" class="w-3 h-3 text-zinc-500"></i> BarberPro</span>
+                        <span class="flex items-center gap-1"><i data-lucide="user" class="w-3 h-3 text-zinc-500"></i> ${b.name}</span>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : `
+              <div class="text-center py-12 text-zinc-500">
+                <i data-lucide="calendar-x" class="w-12 h-12 mx-auto mb-3 opacity-30"></i>
+                <p>No hay citas ni ventas registradas en el sistema.</p>
               </div>
             `}
           </div>
         </div>
       `;
     }
-
     function renderBarbers() {
       // Tomamos los barberos de Firebase o los de prueba (si los de prueba están en [], la lista quedará en 0)
       const barbers = window.appData.barbers.length > 0 ? window.appData.barbers : defaultBarbersFallback;
