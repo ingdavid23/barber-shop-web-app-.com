@@ -138,8 +138,8 @@
          <p class="text-sm text-zinc-300">Multi-Barbero</p>
         </div>
         <div class="glass rounded-xl p-4 text-center">
-         <i data-lucide="bar-chart-3" class="w-8 h-8 text-gold-400 mx-auto mb-2"></i>
-         <p class="text-sm text-zinc-300">Estadísticas</p>
+         <i data-lucide="store" class="w-8 h-8 text-gold-400 mx-auto mb-2"></i>
+         <p class="text-sm text-zinc-300">Multi-Sucursal</p>
         </div>
        </div>
       </div>
@@ -1308,6 +1308,7 @@ onAuthStateChanged(auth, async (user) => {
       `;
     }
     
+    // --- MÓDULO DE RESERVAS Y VALIDACIÓN ---
     window.startBooking = (serviceId) => {
       window.navigateTo('book');
       setTimeout(() => {
@@ -1320,12 +1321,9 @@ onAuthStateChanged(auth, async (user) => {
     }
     
     function renderBooking() {
-      const activeServices = window.appData.services.length > 0 ? window.appData.services : defaultServicesFallback;
+      const activeServices = window.appData.services.length > 0 ? window.appData.services : [];
       
-      // 1. Detectar sucursal por defecto (la que eligió el cliente al registrarse, o la primera que exista)
-      const defaultBranchId = window.currentUser?.branch_id || (window.appData.branches.length > 0 ? window.appData.branches[0].id || window.appData.branches[0].__backendId : 'main');
-      
-      // 2. Filtrar a los barberos para mostrar SOLO los de la sucursal seleccionada por defecto
+      const defaultBranchId = window.currentUser?.branch_id || (window.appData.branches.length > 0 ? (window.appData.branches[0].id || window.appData.branches[0].__backendId) : 'main');
       const initialBarbers = window.appData.barbers.filter(b => b.branch_id === defaultBranchId || (!b.branch_id && defaultBranchId === 'main'));
 
       return `
@@ -1336,21 +1334,17 @@ onAuthStateChanged(auth, async (user) => {
           </div>
           
           <div class="max-w-3xl mx-auto">
-            <div class="glass rounded-2xl p-6 lg:p-8">
+            <div class="glass rounded-3xl p-6 lg:p-8 border border-zinc-700/50 shadow-xl">
               
               <div class="mb-8">
                 <h3 class="font-display text-lg text-gold-400 mb-4 flex items-center gap-2">
-                  <span class="w-6 h-6 bg-gold-400 rounded-full flex items-center justify-center text-zinc-900 text-sm font-bold">1</span>
-                  ELIGE LA SUCURSAL
+                  <span class="w-6 h-6 bg-gold-400 rounded-full flex items-center justify-center text-zinc-900 text-sm font-bold">1</span> SUCURSAL
                 </h3>
                 <div class="relative">
                   <i data-lucide="store" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400"></i>
-                  <select id="booking-branch" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 pl-12 pr-4 text-white focus:border-gold-400 focus:outline-none appearance-none transition cursor-pointer" onchange="window.filterBarbersByBranch()">
+                  <select id="booking-branch" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 pl-12 pr-4 text-white focus:border-gold-400 focus:outline-none appearance-none transition cursor-pointer" onchange="window.filterBarbersByBranch()">
                     ${window.appData.branches.length > 0 
-                      ? window.appData.branches.map(b => {
-                          const bId = b.id || b.__backendId;
-                          return `<option value="${bId}" ${defaultBranchId === bId ? 'selected' : ''}>${b.branch_name} - ${b.branch_location}</option>`;
-                        }).join('')
+                      ? window.appData.branches.map(b => `<option value="${b.id || b.__backendId}" ${defaultBranchId === (b.id || b.__backendId) ? 'selected' : ''}>${b.branch_name} - ${b.branch_location}</option>`).join('')
                       : `<option value="main">Sucursal Principal</option>`
                     }
                   </select>
@@ -1359,29 +1353,24 @@ onAuthStateChanged(auth, async (user) => {
 
               <div class="mb-8">
                 <h3 class="font-display text-lg text-gold-400 mb-4 flex items-center gap-2">
-                  <span class="w-6 h-6 bg-gold-400 rounded-full flex items-center justify-center text-zinc-900 text-sm font-bold">2</span>
-                  SELECCIONA UN SERVICIO
+                  <span class="w-6 h-6 bg-gold-400 rounded-full flex items-center justify-center text-zinc-900 text-sm font-bold">2</span> SERVICIO
                 </h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
                   ${activeServices.map(service => `
                     <label class="cursor-pointer">
                       <input type="radio" name="booking-service" value="${service.id || service.__backendId}" class="peer hidden" onchange="window.updateBookingSummary()">
-                      <div class="bg-zinc-700/50 peer-checked:bg-gold-400/20 peer-checked:border-gold-400 border border-transparent rounded-xl p-3 transition">
+                      <div class="bg-zinc-800/80 peer-checked:bg-gold-400/20 peer-checked:border-gold-400 border border-zinc-700 rounded-xl p-3 transition hover:bg-zinc-700/80">
                         <div class="flex items-center justify-between gap-3">
                           <div class="flex items-center gap-3">
-                            ${service.image_url ? `
-                              <img src="${service.image_url}" class="w-12 h-12 rounded-lg object-cover bg-zinc-800 flex-shrink-0 border border-zinc-600">
-                            ` : `
-                              <div class="w-12 h-12 bg-zinc-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                                <i data-lucide="scissors" class="w-6 h-6 text-zinc-400"></i>
-                              </div>
-                            `}
+                            <div class="w-10 h-10 bg-zinc-700 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <i data-lucide="scissors" class="w-5 h-5 text-zinc-400"></i>
+                            </div>
                             <div>
                               <p class="font-medium text-white leading-tight">${service.name}</p>
-                              <p class="text-xs text-zinc-400 mt-1"><i data-lucide="clock" class="w-3 h-3 inline"></i> ${service.duration} min</p>
+                              <p class="text-xs text-zinc-400 mt-0.5"><i data-lucide="clock" class="w-3 h-3 inline mr-1"></i>${service.duration} min</p>
                             </div>
                           </div>
-                          <span class="font-display text-xl text-gold-400">${service.price}$</span>
+                          <span class="font-display text-xl text-gold-400">$${service.price}</span>
                         </div>
                       </div>
                     </label>
@@ -1391,46 +1380,43 @@ onAuthStateChanged(auth, async (user) => {
               
               <div class="mb-8">
                 <h3 class="font-display text-lg text-gold-400 mb-4 flex items-center gap-2">
-                  <span class="w-6 h-6 bg-gold-400 rounded-full flex items-center justify-center text-zinc-900 text-sm font-bold">3</span>
-                  ELIGE TU BARBERO
+                  <span class="w-6 h-6 bg-gold-400 rounded-full flex items-center justify-center text-zinc-900 text-sm font-bold">3</span> BARBERO
                 </h3>
-                <div id="barbers-grid" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div id="barbers-grid" class="grid grid-cols-2 md:grid-cols-3 gap-3">
                   ${initialBarbers.length > 0 ? initialBarbers.map(barber => `
                     <label class="cursor-pointer">
-                      <input type="radio" name="booking-barber" value="${barber.id || barber.__backendId}" class="peer hidden" onchange="window.updateBookingSummary()">
-                      <div class="bg-zinc-700/50 peer-checked:bg-gold-400/20 peer-checked:border-gold-400 border border-transparent rounded-xl p-4 text-center transition">
-                        <div class="w-16 h-16 bg-zinc-600 rounded-full mx-auto mb-3 flex items-center justify-center border border-zinc-500/30">
-                          <i data-lucide="user" class="w-8 h-8 text-zinc-400"></i>
+                      <input type="radio" name="booking-barber" value="${barber.id || barber.__backendId}" class="peer hidden" onchange="window.checkAvailableTimes()">
+                      <div class="bg-zinc-800/80 peer-checked:bg-gold-400/20 peer-checked:border-gold-400 border border-zinc-700 rounded-xl p-4 text-center transition hover:bg-zinc-700/80">
+                        <div class="w-12 h-12 bg-zinc-700 rounded-full mx-auto mb-2 flex items-center justify-center">
+                          <i data-lucide="user" class="w-6 h-6 text-zinc-400"></i>
                         </div>
-                        <p class="font-medium text-white">${barber.name}</p>
+                        <p class="font-medium text-white text-sm truncate">${barber.name}</p>
                       </div>
                     </label>
-                  `).join('') : '<p class="text-zinc-400 col-span-3 text-sm py-4 text-center bg-zinc-800/50 rounded-xl">No hay barberos disponibles en esta sucursal por ahora.</p>'}
+                  `).join('') : '<p class="text-zinc-500 col-span-3 text-sm py-4 text-center bg-zinc-800/50 rounded-xl">No hay barberos en esta sucursal.</p>'}
                 </div>
               </div>
               
               <div class="mb-8">
                 <h3 class="font-display text-lg text-gold-400 mb-4 flex items-center gap-2">
-                  <span class="w-6 h-6 bg-gold-400 rounded-full flex items-center justify-center text-zinc-900 text-sm font-bold">4</span>
-                  FECHA Y HORA
+                  <span class="w-6 h-6 bg-gold-400 rounded-full flex items-center justify-center text-zinc-900 text-sm font-bold">4</span> FECHA Y HORA
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-sm text-zinc-400 mb-2">Fecha</label>
-                    <input type="date" id="booking-date" min="${new Date().toISOString().split('T')[0]}" class="w-full bg-zinc-700 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none cursor-pointer" onchange="window.updateBookingSummary()">
+                    <label class="block text-xs text-zinc-400 uppercase tracking-widest font-bold mb-2">Fecha</label>
+                    <input type="date" id="booking-date" min="${new Date().toISOString().split('T')[0]}" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none cursor-pointer [color-scheme:dark]" onchange="window.checkAvailableTimes()">
                   </div>
                   <div>
-                    <label class="block text-sm text-zinc-400 mb-2">Hora</label>
-                    <select id="booking-time" class="w-full bg-zinc-700 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none cursor-pointer" onchange="window.updateBookingSummary()">
-                      <option value="">Selecciona hora</option>
-                      ${generateTimeSlots().map(time => `<option value="${time}">${time}</option>`).join('')}
+                    <label class="block text-xs text-zinc-400 uppercase tracking-widest font-bold mb-2">Hora Disponible</label>
+                    <select id="booking-time" class="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-zinc-400 focus:border-gold-400 focus:outline-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition" onchange="window.updateBookingSummary()" disabled>
+                      <option value="">Selecciona fecha y barbero</option>
                     </select>
                   </div>
                 </div>
               </div>
               
-              <div id="booking-summary" class="bg-zinc-700/30 rounded-xl p-5 mb-6 hidden border border-gold-400/30">
-                <h4 class="font-display text-xl text-white mb-4 border-b border-zinc-600 pb-2">RESUMEN DE TU CITA</h4>
+              <div id="booking-summary" class="bg-zinc-800/80 rounded-2xl p-5 mb-6 hidden border border-gold-400/30 shadow-lg">
+                <h4 class="font-display text-xl text-white mb-3 border-b border-zinc-700 pb-2">RESUMEN DE TU CITA</h4>
                 <div id="summary-content"></div>
               </div>
               
@@ -1457,27 +1443,82 @@ onAuthStateChanged(auth, async (user) => {
     window.filterBarbersByBranch = () => {
       const branchId = document.getElementById('booking-branch').value;
       const barbersGrid = document.getElementById('barbers-grid');
-      
       const filteredBarbers = window.appData.barbers.filter(b => b.branch_id === branchId || (!b.branch_id && branchId === 'main'));
       
       if (filteredBarbers.length === 0) {
-         barbersGrid.innerHTML = '<p class="text-zinc-400 col-span-3 text-sm py-4 text-center bg-zinc-800/50 rounded-xl">No hay barberos disponibles en esta sucursal por ahora.</p>';
+         barbersGrid.innerHTML = '<p class="text-zinc-500 col-span-3 text-sm py-4 text-center bg-zinc-800/50 rounded-xl">No hay barberos en esta sucursal.</p>';
       } else {
          barbersGrid.innerHTML = filteredBarbers.map(barber => `
             <label class="cursor-pointer fade-in">
-              <input type="radio" name="booking-barber" value="${barber.id || barber.__backendId}" class="peer hidden" onchange="window.updateBookingSummary()">
-              <div class="bg-zinc-700/50 peer-checked:bg-gold-400/20 peer-checked:border-gold-400 border border-transparent rounded-xl p-4 text-center transition">
-                <div class="w-16 h-16 bg-zinc-600 rounded-full mx-auto mb-3 flex items-center justify-center border border-zinc-500/30">
-                  <i data-lucide="user" class="w-8 h-8 text-zinc-400"></i>
+              <input type="radio" name="booking-barber" value="${barber.id || barber.__backendId}" class="peer hidden" onchange="window.checkAvailableTimes()">
+              <div class="bg-zinc-800/80 peer-checked:bg-gold-400/20 peer-checked:border-gold-400 border border-zinc-700 rounded-xl p-4 text-center transition hover:bg-zinc-700/80">
+                <div class="w-12 h-12 bg-zinc-700 rounded-full mx-auto mb-2 flex items-center justify-center">
+                  <i data-lucide="user" class="w-6 h-6 text-zinc-400"></i>
                 </div>
-                <p class="font-medium text-white">${barber.name}</p>
+                <p class="font-medium text-white text-sm truncate">${barber.name}</p>
               </div>
             </label>
          `).join('');
       }
       lucide.createIcons();
-      window.updateBookingSummary(); // Reevalúa el resumen porque el barbero anterior se deseleccionó
+      window.checkAvailableTimes();
     }
+
+    // NUEVO: MOTOR INTELIGENTE PARA OCULTAR HORARIOS OCUPADOS
+    // MOTOR INTELIGENTE PARA OCULTAR HORARIOS Y CONVERTIR A AM/PM
+    window.checkAvailableTimes = () => {
+        const barberId = document.querySelector('input[name="booking-barber"]:checked')?.value;
+        const dateStr = document.getElementById('booking-date')?.value;
+        const timeSelect = document.getElementById('booking-time');
+
+        if (!timeSelect) return;
+
+        if (!barberId || !dateStr) {
+            timeSelect.innerHTML = '<option value="">Selecciona fecha y barbero primero</option>';
+            timeSelect.disabled = true;
+            timeSelect.classList.add('text-zinc-400');
+            timeSelect.classList.remove('text-white');
+            window.updateBookingSummary();
+            return;
+        }
+
+        const allSlots = generateTimeSlots();
+
+        const occupiedAppts = window.appData.appointments.filter(a => 
+            a.barber_id === barberId && a.date === dateStr && a.status !== 'cancelled'
+        ).map(a => a.time);
+
+        const blockedSlots = window.appData.blockedSlots.filter(b => 
+            b.barber_id === barberId && b.date === dateStr
+        );
+
+        const availableSlots = allSlots.filter(slot => {
+            if (occupiedAppts.includes(slot)) return false;
+            let isBlocked = false;
+            blockedSlots.forEach(block => {
+                const [start, end] = block.time.split('-');
+                if (start && end && slot >= start && slot < end) isBlocked = true; 
+            });
+            return !isBlocked;
+        });
+
+        if (availableSlots.length > 0) {
+            let optionsHtml = '<option value="">Selecciona hora disponible</option>';
+            availableSlots.forEach(t => {
+                // Generamos la lista, pero mostrando AM/PM
+                optionsHtml += `<option value="${t}">${window.formatTime12h(t)}</option>`;
+            });
+            timeSelect.innerHTML = optionsHtml;
+            timeSelect.disabled = false;
+            timeSelect.classList.remove('text-zinc-400');
+            timeSelect.classList.add('text-white');
+        } else {
+            timeSelect.innerHTML = '<option value="">Día completamente lleno</option>';
+            timeSelect.disabled = true;
+            timeSelect.classList.add('text-red-400');
+        }
+        window.updateBookingSummary();
+    };
     
     window.updateBookingSummary = () => {
       const branchId = document.getElementById('booking-branch')?.value;
@@ -1496,14 +1537,14 @@ onAuthStateChanged(auth, async (user) => {
         const barberData = window.appData.barbers.find(b => (b.id || b.__backendId) === barberId);
         
         content.innerHTML = `
-          <div class="space-y-3">
+          <div class="space-y-3 text-sm">
             <div class="flex justify-between"><span class="text-zinc-400"><i data-lucide="store" class="w-4 h-4 inline mr-1"></i> Sucursal:</span><span class="text-white font-medium">${branchData.branch_name}</span></div>
             <div class="flex justify-between"><span class="text-zinc-400"><i data-lucide="scissors" class="w-4 h-4 inline mr-1"></i> Servicio:</span><span class="text-white font-medium">${serviceData.name}</span></div>
             <div class="flex justify-between"><span class="text-zinc-400"><i data-lucide="user" class="w-4 h-4 inline mr-1"></i> Barbero:</span><span class="text-white font-medium">${barberData.name}</span></div>
             <div class="flex justify-between"><span class="text-zinc-400"><i data-lucide="calendar" class="w-4 h-4 inline mr-1"></i> Fecha:</span><span class="text-white font-medium">${formatDate(date)}</span></div>
-            <div class="flex justify-between"><span class="text-zinc-400"><i data-lucide="clock" class="w-4 h-4 inline mr-1"></i> Hora:</span><span class="text-white font-medium">${time}</span></div>
-            <div class="border-t border-zinc-600/50 pt-3 mt-3 flex justify-between items-center">
-              <span class="text-gold-400 font-medium">Total:</span><span class="text-gold-400 font-display text-3xl">${serviceData.price}$</span>
+            <div class="flex justify-between"><span class="text-zinc-400"><i data-lucide="clock" class="w-4 h-4 inline mr-1"></i> Hora:</span><span class="text-gold-400 font-bold">${window.formatTime12h(time)}</span></div>
+            <div class="border-t border-zinc-700 pt-3 mt-3 flex justify-between items-center">
+              <span class="text-gold-400 font-bold uppercase tracking-widest text-xs">Total a Pagar:</span><span class="text-gold-400 font-display text-3xl">$${serviceData.price}</span>
             </div>
           </div>
         `;
@@ -1515,7 +1556,7 @@ onAuthStateChanged(auth, async (user) => {
       }
       lucide.createIcons();
     }
-    
+
     window.confirmBooking = async () => {
       const branchId = document.getElementById('booking-branch')?.value;
       const serviceId = document.querySelector('input[name="booking-service"]:checked')?.value;
@@ -1525,19 +1566,19 @@ onAuthStateChanged(auth, async (user) => {
       
       if (!serviceId || !barberId || !date || !time) return showToast('Completa todos los campos', 'error');
       
-      // Chequear conflicto de horarios
+      // Doble validación en milisegundos (Por si 2 personas reservan a la vez)
       const conflict = window.appData.appointments.find(a => 
         a.barber_id === barberId && a.date === date && a.time === time && a.status !== 'cancelled'
       );
-      if (conflict) return showToast('Este horario ya está ocupado', 'error');
-      
+      if (conflict) return showToast('¡Alguien acaba de tomar ese horario! Elige otro por favor.', 'error');
+
       try {
         const submitBtn = document.getElementById('booking-submit');
         submitBtn.disabled = true;
-        submitBtn.innerHTML = 'Procesando...';
+        submitBtn.innerHTML = '<div class="w-5 h-5 border-2 border-zinc-900 border-t-transparent rounded-full animate-spin"></div> Procesando...';
 
         await addDoc(collection(db, "appointments"), {
-          branch_id: branchId || 'main', // Ahora la cita guarda en qué sucursal se hizo
+          branch_id: branchId || 'main',
           service_name: serviceId, 
           barber_id: barberId,
           client_id: window.currentUser.id,
@@ -1550,8 +1591,10 @@ onAuthStateChanged(auth, async (user) => {
         showToast('¡Cita reservada exitosamente!', 'success');
         window.navigateTo('my-appointments');
       } catch (e) {
-        showToast('Error al reservar la cita', 'error');
+        showToast('Error al reservar la cita. Revisa tu conexión.', 'error');
         document.getElementById('booking-submit').disabled = false;
+        document.getElementById('booking-submit').innerHTML = '<i data-lucide="calendar-check" class="w-5 h-5"></i> <span>Confirmar Reserva</span>';
+        lucide.createIcons();
       }
     }
     
@@ -2058,11 +2101,11 @@ onAuthStateChanged(auth, async (user) => {
                     </p>
                     <div class="flex items-center gap-3 mb-4">
                         <select id="lunch-start" class="w-full bg-zinc-800 border border-zinc-700 p-2.5 rounded-lg text-white focus:border-gold-400 outline-none">
-                            ${generateTimeSlots().map(t=>`<option value="${t}" ${t==='14:00'?'selected':''}>${t}</option>`).join('')}
+                            ${generateTimeSlots().map(t => `<option value="${t}" ${t==='14:00'?'selected':''}>${window.formatTime12h(t)}</option>`).join('')}
                         </select>
                         <span class="text-zinc-500 font-medium">a</span>
                         <select id="lunch-end" class="w-full bg-zinc-800 border border-zinc-700 p-2.5 rounded-lg text-white focus:border-gold-400 outline-none">
-                            ${generateTimeSlots().map(t=>`<option value="${t}" ${t==='15:00'?'selected':''}>${t}</option>`).join('')}
+                            ${generateTimeSlots().map(t => `<option value="${t}" ${t==='15:00'?'selected':''}>${window.formatTime12h(t)}</option>`).join('')}
                         </select>
                     </div>
                     <button onclick="window.blockLunchTime()" class="w-full bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 border border-zinc-700 hover:border-gold-400 shadow-lg">
@@ -2074,8 +2117,12 @@ onAuthStateChanged(auth, async (user) => {
                   <p class="text-sm text-zinc-400 font-medium mb-2">Bloqueo Personalizado (Cualquier día)</p>
                   <input type="date" id="block-date" class="w-full bg-zinc-700/50 border border-zinc-600 focus:border-gold-400 p-3 rounded-xl text-white focus:outline-none [color-scheme:dark]">
                   <div class="grid grid-cols-2 gap-4">
-                    <select id="block-start" class="w-full bg-zinc-700/50 border border-zinc-600 focus:border-gold-400 p-3 rounded-xl text-white appearance-none">${generateTimeSlots().map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
-                    <select id="block-end" class="w-full bg-zinc-700/50 border border-zinc-600 focus:border-gold-400 p-3 rounded-xl text-white appearance-none">${generateTimeSlots().map(t=>`<option value="${t}">${t}</option>`).join('')}</select>
+                    <select id="block-start" class="w-full bg-zinc-700/50 border border-zinc-600 focus:border-gold-400 p-3 rounded-xl text-white appearance-none">
+                        ${generateTimeSlots().map(t => `<option value="${t}">${window.formatTime12h(t)}</option>`).join('')}
+                    </select>
+                    <select id="block-end" class="w-full bg-zinc-700/50 border border-zinc-600 focus:border-gold-400 p-3 rounded-xl text-white appearance-none">
+                        ${generateTimeSlots().map(t => `<option value="${t}">${window.formatTime12h(t)}</option>`).join('')}
+                    </select>
                   </div>
                   <input type="text" id="block-reason" placeholder="Motivo (Ej. Cita médica, Asunto personal...)" class="w-full bg-zinc-700/50 border border-zinc-600 focus:border-gold-400 p-3 rounded-xl text-white focus:outline-none">
                   <button onclick="window.blockTimeSlot()" class="w-full bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white py-3 rounded-xl font-bold transition flex justify-center items-center gap-2">
@@ -2087,21 +2134,25 @@ onAuthStateChanged(auth, async (user) => {
               <div class="glass rounded-2xl p-6 border border-zinc-700/50">
                 <h2 class="font-display text-xl text-white mb-4">MIS BLOQUEOS ACTIVOS</h2>
                 <div class="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                    ${myBlocks.length > 0 ? myBlocks.map(b => `
+                    ${myBlocks.length > 0 ? myBlocks.map(b => {
+                        const formattedTime = b.time ? b.time.split('-').map(t => window.formatTime12h(t)).join(' a ') : '--:--';
+                        const coffeeIcon = b.reason === 'Hora de Comida' ? '<i data-lucide="coffee" class="w-4 h-4 text-gold-400"></i>' : '';
+                        
+                        return `
                         <div class="bg-zinc-800/80 border border-zinc-700 p-4 rounded-xl flex items-center justify-between group hover:border-red-500/30 transition">
                             <div>
                                 <p class="text-white font-medium flex items-center gap-2">
-                                  ${b.reason || 'Ocupado'}
-                                  ${b.reason === 'Hora de Comida' ? '<i data-lucide="coffee" class="w-4 h-4 text-gold-400"></i>' : ''}
+                                  ${b.reason || 'Ocupado'} ${coffeeIcon}
                                 </p>
                                 <p class="text-sm text-zinc-400 mt-1"><i data-lucide="calendar" class="w-3 h-3 inline mr-1"></i> ${formatDate(b.date)}</p>
-                                <p class="text-xs text-red-400 mt-1 font-bold tracking-wider"><i data-lucide="clock" class="w-3 h-3 inline mr-1"></i> ${b.time}</p>
+                                <p class="text-xs text-red-400 mt-1 font-bold tracking-wider"><i data-lucide="clock" class="w-3 h-3 inline mr-1"></i> ${formattedTime}</p>
                             </div>
                             <button onclick="window.deleteBlock('${b.id || b.__backendId}')" class="p-2 text-zinc-500 hover:text-red-400 transition bg-zinc-900 rounded-lg border border-transparent hover:border-red-500/30" title="Eliminar Bloqueo">
                                 <i data-lucide="trash-2" class="w-5 h-5"></i>
                             </button>
                         </div>
-                    `).join('') : `
+                        `;
+                    }).join('') : `
                       <div class="text-center py-12">
                         <i data-lucide="unlock" class="w-12 h-12 text-zinc-600 mx-auto mb-3"></i>
                         <p class="text-zinc-500 text-sm">No tienes horarios bloqueados. Toda tu agenda está abierta.</p>
@@ -2352,55 +2403,54 @@ onAuthStateChanged(auth, async (user) => {
       `;
     }
     
-
-    // ==========================================
-    // --- MÓDULO DE USUARIOS (ADMIN) ---
+// ==========================================
+    // --- MÓDULO DE USUARIOS (ADMIN) ADAPTADO ---
     // ==========================================
     function renderUsers() {
       const usersList = window.appData.users || [];
       
-      return `
-        <div class="p-6 lg:p-8 fade-in">
-          <div class="mb-8">
-            <h1 class="font-display text-3xl text-white tracking-wide uppercase">USUARIOS</h1>
-            <p class="text-zinc-400">Gestión de cuentas de acceso</p>
-          </div>
+      // HTML Blindado y adaptado a móviles (Touch-Friendly)
+      const usersHtml = usersList.length > 0 ? usersList.map(u => {
+          const uId = u.__backendId || u.id;
           
-          <div class="glass rounded-2xl p-6">
-            ${usersList.length > 0 ? usersList.map(u => `
-              <div class="bg-zinc-800/80 hover:bg-zinc-700/80 p-4 mb-3 rounded-xl flex items-center justify-between transition group border border-zinc-700/50">
-                <div>
-                  <p class="text-white font-medium flex items-center gap-2">
-                    ${u.name} 
-                    <span class="text-gold-400 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-gold-400/10 border border-gold-400/20">
-                      ${u.role}
-                    </span>
-                  </p>
-                  <p class="text-zinc-400 text-sm mt-1">
-                    <i data-lucide="mail" class="w-3 h-3 inline mr-1"></i>${u.email}
-                    ${u.phone ? `<span class="ml-3"><i data-lucide="phone" class="w-3 h-3 inline mr-1"></i>${u.phone}</span>` : ''}
-                  </p>
-                </div>
-                
-                <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-                  <button onclick="window.showEditUserModal('${u.__backendId || u.id}')" class="text-zinc-400 hover:text-white bg-zinc-900/80 p-2 rounded-lg transition" title="Editar y Contraseña">
-                    <i data-lucide="edit-2" class="w-4 h-4"></i>
-                  </button>
-                  ${window.currentUser && (window.currentUser.id === u.id || window.currentUser.__backendId === u.__backendId) ? `
-                    <span class="text-zinc-500 text-xs italic px-3 py-2">Tú</span>
-                  ` : `
-                    <button onclick="window.deleteUser('${u.__backendId || u.id}')" class="text-zinc-400 hover:text-red-400 bg-zinc-900/80 p-2 rounded-lg transition" title="Eliminar Usuario">
-                      <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </button>
-                  `}
-                </div>
-              </div>
-            `).join('') : `
-              <div class="text-center py-12 text-zinc-400">
-                <i data-lucide="users" class="w-12 h-12 text-zinc-600 mx-auto mb-4"></i>
-                <p>No hay usuarios registrados</p>
-              </div>
-            `}
+          // Verificamos si este usuario es el administrador que está logueado actualmente
+          const isMe = window.currentUser && (window.currentUser.id === u.id || window.currentUser.__backendId === uId);
+          const phoneHtml = u.phone ? '<span class="ml-4"><i data-lucide="phone" class="w-3 h-3 inline mr-1 text-zinc-500"></i>' + u.phone + '</span>' : '';
+
+          let buttonsHtml = '';
+          if (isMe) {
+              // Si soy yo, solo me dejo el botón de editar
+              buttonsHtml = '<button onclick="window.showEditUserModal(\'' + uId + '\')" class="flex-1 bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-white py-3 px-6 rounded-xl transition flex justify-center items-center gap-2 text-sm font-bold shadow-sm" title="Editar Mi Perfil"><i data-lucide="edit-2" class="w-4 h-4"></i> Editar (Tú)</button>';
+          } else {
+              // Si es otro, le pongo Editar y Eliminar
+              buttonsHtml = '<button onclick="window.showEditUserModal(\'' + uId + '\')" class="flex-1 bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-white py-3 px-4 rounded-xl transition flex justify-center items-center gap-2 text-sm font-bold shadow-sm" title="Editar"><i data-lucide="edit-2" class="w-4 h-4"></i> Editar</button>' +
+                            '<button onclick="window.deleteUser(\'' + uId + '\')" class="flex-1 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white py-3 px-4 rounded-xl transition flex justify-center items-center gap-2 text-sm font-bold shadow-sm border border-red-500/20 hover:border-transparent" title="Eliminar"><i data-lucide="trash-2" class="w-4 h-4"></i> Eliminar</button>';
+          }
+
+          return '<div class="bg-zinc-800/80 p-5 md:p-6 mb-4 rounded-3xl flex flex-col md:flex-row md:items-center justify-between transition border border-zinc-700/50 shadow-lg">' +
+                   '<div class="mb-4 md:mb-0">' +
+                     '<h3 class="text-white font-display text-xl md:text-2xl flex items-center gap-3 mb-2">' + u.name +
+                       '<span class="text-gold-400 text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded-md bg-gold-400/10 border border-gold-400/20">' + u.role + '</span>' +
+                     '</h3>' +
+                     '<p class="text-zinc-400 text-sm mt-2 flex flex-wrap items-center gap-y-2">' +
+                       '<span><i data-lucide="mail" class="w-4 h-4 inline mr-1 text-zinc-500"></i>' + u.email + '</span>' +
+                       phoneHtml +
+                     '</p>' +
+                   '</div>' +
+                   '<div class="flex gap-3 w-full md:w-auto mt-2 md:mt-0 pt-4 border-t border-zinc-700/50 md:border-0 md:pt-0">' +
+                     buttonsHtml +
+                   '</div>' +
+                 '</div>';
+      }).join('') : '<div class="text-center py-16 bg-zinc-800/30 rounded-3xl border border-zinc-700/50"><i data-lucide="users" class="w-16 h-16 text-zinc-600 mx-auto mb-4 opacity-50"></i><p class="text-zinc-300 text-xl font-medium">No hay usuarios registrados</p></div>';
+
+      return `
+        <div class="p-4 md:p-6 lg:p-8 fade-in">
+          <div class="mb-6 md:mb-8">
+            <h1 class="font-display text-3xl md:text-4xl text-white tracking-wide uppercase">USUARIOS</h1>
+            <p class="text-zinc-400 text-sm md:text-base">Gestión de cuentas de acceso</p>
+          </div>
+          <div>
+            ${usersHtml}
           </div>
         </div>
       `;
@@ -2960,44 +3010,65 @@ window.sendUserPasswordReset = async (email) => {
     }
    
 // --- GESTIÓN DE SUCURSALES (ADMIN) ---
+// --- GESTIÓN DE SUCURSALES (ADMIN) - ADAPTADO A MÓVIL ---
 function renderBranches() {
+      const branchesList = window.appData.branches || [];
+      
+      // HTML Blindado y adaptado a móviles (Touch-Friendly)
+      const branchesHtml = branchesList.length > 0 ? branchesList.map(b => {
+          const bId = b.id || b.__backendId;
+          const phoneHtml = b.branch_phone ? '<p class="text-zinc-400 text-sm mt-2"><i data-lucide="phone" class="w-4 h-4 inline mr-1 text-zinc-500"></i>' + b.branch_phone + '</p>' : '';
+          
+          return '<div class="glass rounded-3xl p-6 flex flex-col h-full hover:bg-zinc-800/50 transition border border-zinc-700/50 shadow-lg">' +
+                   '<div class="flex-1">' +
+                     '<div class="flex items-center gap-3 mb-4">' +
+                       '<div class="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center border border-zinc-700">' +
+                         '<i data-lucide="store" class="w-6 h-6 text-zinc-400"></i>' +
+                       '</div>' +
+                       '<h3 class="font-display text-2xl text-white">' + b.branch_name + '</h3>' +
+                     '</div>' +
+                     '<p class="text-zinc-400 text-sm"><i data-lucide="map-pin" class="w-4 h-4 inline mr-1 text-zinc-500"></i>' + b.branch_location + '</p>' +
+                     phoneHtml +
+                   '</div>' +
+                   '<div class="flex gap-3 mt-6 pt-5 border-t border-zinc-700/50">' +
+                     '<button onclick="window.showEditBranchModal(\'' + bId + '\')" class="flex-1 bg-zinc-800 hover:bg-gold-400 hover:text-zinc-900 text-white py-3 rounded-xl transition flex justify-center items-center gap-2 text-sm font-bold shadow-sm" title="Editar"><i data-lucide="edit-2" class="w-4 h-4"></i> Editar</button>' +
+                     '<button onclick="window.deleteBranch(\'' + bId + '\')" class="flex-1 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white py-3 rounded-xl transition flex justify-center items-center gap-2 text-sm font-bold shadow-sm border border-red-500/20 hover:border-transparent" title="Eliminar"><i data-lucide="trash-2" class="w-4 h-4"></i> Eliminar</button>' +
+                   '</div>' +
+                 '</div>';
+      }).join('') : '';
+
       return `
-        <div class="p-6 lg:p-8 fade-in">
-          <div class="flex justify-between items-center mb-6">
-            <h1 class="font-display text-3xl text-white tracking-wide uppercase">SUCURSALES</h1>
-            <button onclick="window.showAddBranchModal()" class="gradient-gold text-zinc-900 px-4 py-2 rounded-xl font-bold transition hover:opacity-90 flex items-center gap-2">
-              <i data-lucide="store" class="w-5 h-5"></i> Nueva Sucursal
+        <div class="p-4 md:p-6 lg:p-8 fade-in">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 md:mb-8 gap-4">
+            <div>
+              <h1 class="font-display text-3xl md:text-4xl text-white tracking-wide uppercase">SUCURSALES</h1>
+              <p class="text-zinc-400 mt-1 text-sm md:text-base">Administra las ubicaciones de tu barbería</p>
+            </div>
+            <button onclick="window.showAddBranchModal()" class="gradient-gold text-zinc-900 px-5 py-3 rounded-xl font-bold transition hover:opacity-90 flex items-center justify-center gap-2 shadow-lg w-full sm:w-auto">
+              <i data-lucide="plus" class="w-5 h-5"></i> Nueva Sucursal
             </button>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="glass rounded-2xl p-6 border border-gold-400/50 bg-gold-400/5">
-                <div class="flex items-center justify-between mb-2">
-                    <h3 class="font-display text-xl text-gold-400">Sede Central</h3>
-                    <i data-lucide="star" class="text-gold-400 w-5 h-5 fill-current"></i>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            
+            <div class="glass rounded-3xl p-6 flex flex-col h-full border border-gold-400/50 bg-gold-400/5 shadow-lg">
+                <div class="flex-1">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-12 h-12 gradient-gold rounded-xl flex items-center justify-center">
+                            <i data-lucide="star" class="w-6 h-6 text-zinc-900 fill-current"></i>
+                        </div>
+                        <h3 class="font-display text-2xl text-gold-400">Sede Central</h3>
+                    </div>
+                    <p class="text-zinc-300 text-sm font-medium">Administración Principal del Sistema</p>
+                    <p class="text-zinc-500 text-xs mt-2">Esta sucursal base no se puede eliminar.</p>
                 </div>
-                <p class="text-zinc-400 text-sm">Administración Principal</p>
+                <div class="mt-6 pt-5 border-t border-gold-400/20">
+                    <p class="text-xs text-gold-400/80 uppercase tracking-widest text-center font-bold">Sucursal Por Defecto</p>
+                </div>
             </div>
             
-            ${window.appData.branches.map(b => `
-              <div class="glass rounded-2xl p-6 flex flex-col justify-between relative group hover:bg-zinc-800/50 transition">
-                <div>
-                  <div class="flex items-start justify-between mb-2">
-                    <h3 class="font-display text-xl text-white">${b.branch_name}</h3>
-                    
-                    <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onclick="window.showEditBranchModal('${b.id || b.__backendId}')" class="text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 p-2 rounded-lg transition" title="Editar">
-                            <i data-lucide="edit-2" class="w-4 h-4"></i>
-                        </button>
-                        <button onclick="window.deleteBranch('${b.id || b.__backendId}')" class="text-zinc-400 hover:text-red-400 bg-zinc-800 hover:bg-red-500/20 p-2 rounded-lg transition" title="Eliminar">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                  </div>
-                  <p class="text-zinc-400 text-sm mb-1"><i data-lucide="map-pin" class="w-3 h-3 inline mr-1"></i>${b.branch_location}</p>
-                  ${b.branch_phone ? `<p class="text-zinc-500 text-sm"><i data-lucide="phone" class="w-3 h-3 inline mr-1"></i>${b.branch_phone}</p>` : ''}
-                </div>
-              </div>
-            `).join('')}
+            ${branchesHtml}
+            
           </div>
         </div>
       `;
@@ -5063,8 +5134,8 @@ function renderBranches() {
     });
 
 
-    // UTILITIES
-    window.showModal = (content) => { document.getElementById('modal-content').innerHTML = content; document.getElementById('modal-container').classList.remove('hidden'); lucide.createIcons(); }
+   // UTILITIES
+   window.showModal = (content) => { document.getElementById('modal-content').innerHTML = content; document.getElementById('modal-container').classList.remove('hidden'); lucide.createIcons(); }
     window.closeModal = () => { document.getElementById('modal-container').classList.add('hidden'); }
     
     window.showToast = (message, type = 'info') => {
@@ -5078,9 +5149,21 @@ function renderBranches() {
     
     function formatDate(dateStr) {
       if(!dateStr) return '';
-      const date = new Date(dateStr);
+      const date = new Date(dateStr + "T00:00:00");
       return date.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
     }
+
+    // NUEVO: TRADUCTOR DE 24 HORAS A 12 HORAS (AM/PM)
+    window.formatTime12h = (time24) => {
+        if(!time24) return '--:--';
+        const [hourStr, minStr] = time24.split(':');
+        let h = parseInt(hourStr, 10);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12;
+        h = h ? h : 12; // El 0 se convierte en 12
+        return `${String(h).padStart(2, '0')}:${minStr} ${ampm}`;
+    }
+
     function getStatusColor(s) { return { pending:'bg-yellow-500/20 text-yellow-400', confirmed:'bg-blue-500/20 text-blue-400', completed:'bg-green-500/20 text-green-400', cancelled:'bg-red-500/20 text-red-400' }[s]||'bg-zinc-500/20 text-zinc-400'; }
     function getStatusLabel(s) { return { pending:'Pendiente', confirmed:'Confirmada', completed:'Completada', cancelled:'Cancelada' }[s]||s; }
 
