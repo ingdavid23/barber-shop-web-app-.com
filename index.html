@@ -331,7 +331,7 @@
         console.log("Sincronizador de diseño en espera.", error);
     });
 
-    // =============================================
+   // =============================================
     // APPLICATION STATE
     // =============================================
     window.appData = {
@@ -343,7 +343,9 @@
       schedules: [],
       branches: [],
       barbers: [],
-      expenses: [] // <--- NUEVO: Agregamos el contenedor de gastos
+      expenses: [],
+      products: [], 
+      product_sales: []
     };
     
     window.currentUser = null;
@@ -365,23 +367,33 @@
     // FIREBASE REALTIME LISTENERS
     // =============================================
     function setupRealtimeListeners() {
-      unsubscribes.forEach(unsub => unsub()); // clear previous
+      unsubscribes.forEach(unsub => unsub());
       unsubscribes = [];
 
-      // Cambia esta línea:
-    const collectionsToListen = ['appointments', 'services', 'users', 'promotions', 'blockedSlots', 'schedules', 'branches', 'barbers', 'expenses'];
+      // Definimos qué colecciones queremos en tiempo real (lo reciente)
+      const collectionsToListen = ['services', 'users', 'promotions', 'branches', 'barbers', 'products'];
       
+      // 1. Datos estáticos o catálogos (se mantienen igual)
       collectionsToListen.forEach(collectionName => {
         const unsub = onSnapshot(collection(db, collectionName), (snapshot) => {
-          window.appData[collectionName] = snapshot.docs.map(d => ({ 
-            ...d.data(), 
-            id: d.id, 
-            __backendId: d.id // Mantener compatibilidad con tu código original!
-          }));
-          
-          if (window.currentUser) {
-            renderCurrentView();
-          }
+          window.appData[collectionName] = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+          if (window.currentUser) renderCurrentView();
+        });
+        unsubscribes.push(unsub);
+      });
+
+      // 2. DATOS MASIVOS (Citas y Ventas): Solo escuchamos los últimos 30 días
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const dateLimit = thirtyDaysAgo.toISOString().split('T')[0];
+
+      const bigCollections = ['appointments', 'product_sales', 'expenses'];
+      
+      bigCollections.forEach(colName => {
+        const q = query(collection(db, colName), where("date", ">=", dateLimit));
+        const unsub = onSnapshot(q, (snapshot) => {
+          window.appData[colName] = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+          if (window.currentUser) renderCurrentView();
         });
         unsubscribes.push(unsub);
       });
@@ -671,6 +683,7 @@ onAuthStateChanged(auth, async (user) => {
           ...baseItems,
           { view: 'today', label: 'Citas de Hoy', icon: 'calendar-days' },
           { view: 'walk-in', label: 'Venta Directa', icon: 'banknote' },
+          { view: 'pos', label: 'Punto de Venta', icon: 'shopping-bag' }, // <--- AQUÍ SE AGREGA EL BOTÓN A LOS BARBEROS
           { view: 'calendar', label: 'Calendario', icon: 'calendar' },
           { view: 'schedule', label: 'Mi Horario', icon: 'clock' },
           { view: 'clients', label: 'Clientes', icon: 'users' }
@@ -681,6 +694,8 @@ onAuthStateChanged(auth, async (user) => {
         const items = [
           ...baseItems,
           { view: 'daily-sales', label: 'Ventas de Hoy', icon: 'badge-dollar-sign' },
+          { view: 'pos', label: 'Punto de Venta', icon: 'shopping-bag' },
+          { view: 'product-sales', label: 'Historial POS', icon: 'clipboard-list' }, // <--- NUEVO HISTORIAL
           { view: 'payroll', label: 'Nóminas', icon: 'wallet' },
           { view: 'branding', label: 'Personalización', icon: 'palette' }, // NUEVO BOTÓN
           { view: 'expenses', label: 'Gastos', icon: 'receipt' }, // <--- NUEVO BOTÓN
@@ -726,6 +741,8 @@ onAuthStateChanged(auth, async (user) => {
       switch(window.currentView) {
         case 'dashboard': mainContent.innerHTML = renderDashboard(); break;
         case 'daily-sales': mainContent.innerHTML = renderDailySalesAdmin(); break; // NUEVA PANTALLAs
+        case 'pos': mainContent.innerHTML = renderPOS(); break; // <--- NUEVA RUTA
+        case 'product-sales': mainContent.innerHTML = renderProductSalesHistory(); break; // <--- NUEVA RUTA
         case 'services': mainContent.innerHTML = renderServices(); break;
         case 'payroll': mainContent.innerHTML = renderPayrollAdmin(); break; // NUEVA 
         case 'expenses': mainContent.innerHTML = renderExpensesAdmin(); break; // <--- NUEVA RUTA
@@ -5135,6 +5152,41 @@ function renderBranches() {
 
 
    // UTILITIES
+// UTILITIES
+
+    // ==========================================
+    // --- BÚSQUEDA INFINITA EN LA NUBE ---
+    // ==========================================
+    window.searchInfiniteHistory = async (collectionName, startDate, endDate) => {
+        try {
+            showToast('Buscando en la nube...', 'info');
+            
+            // Hacemos una consulta filtrada directamente al servidor de Firebase
+            const q = query(
+                collection(db, collectionName), 
+                where("date", ">=", startDate), 
+                where("date", "<=", endDate),
+                orderBy("date", "desc")
+            );
+            
+            const querySnapshot = await getDocs(q);
+            const results = querySnapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+            
+            if(results.length === 0) {
+                showToast('No se encontraron registros en esas fechas', 'warning');
+            }
+            
+            return results;
+        } catch (error) {
+            console.error("Error en búsqueda profunda:", error);
+            showToast('Error al consultar el historial remoto', 'error');
+            return [];
+        }
+    };
+
+    window.showModal = (content) => { document.getElementById('modal-content').innerHTML = content; document.getElementById('modal-container').classList.remove('hidden'); lucide.createIcons(); }
+    window.closeModal = () => { document.getElementById('modal-container').classList.add('hidden'); }
+
    window.showModal = (content) => { document.getElementById('modal-content').innerHTML = content; document.getElementById('modal-container').classList.remove('hidden'); lucide.createIcons(); }
     window.closeModal = () => { document.getElementById('modal-container').classList.add('hidden'); }
     
@@ -5268,6 +5320,498 @@ function renderBranches() {
         }
       }
     }
+    // ==========================================
+    // --- MÓDULO DE INVENTARIO Y POS (CAJA) ---
+    // ==========================================
+    window.posCart = []; // Carrito de compras virtual
+
+    function renderPOS() {
+      const products = window.appData.products || [];
+      
+      // Catálogo de Productos Blindado con acciones de Admin
+      const isAdmin = window.currentUser && window.currentUser.role === 'admin';
+      
+      const productsHtml = products.length > 0 ? products.map(p => {
+          const isOut = p.stock <= 0;
+          const pId = p.id || p.__backendId;
+          
+          let adminButtons = '';
+          if (isAdmin) {
+              adminButtons = '<div class="flex gap-2 mt-3 pt-3 border-t border-zinc-700/50">' +
+                               '<button onclick="window.showEditProductModal(\'' + pId + '\')" class="flex-1 bg-zinc-700 hover:bg-gold-400 hover:text-zinc-900 text-white py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1"><i data-lucide="edit-2" class="w-3 h-3"></i> Editar</button>' +
+                               '<button onclick="window.deleteProduct(\'' + pId + '\')" class="flex-1 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 border border-red-500/20 hover:border-transparent"><i data-lucide="trash-2" class="w-3 h-3"></i> Eliminar</button>' +
+                             '</div>';
+          }
+
+          return '<div class="bg-zinc-800/80 border ' + (isOut ? 'border-red-500/30 opacity-60' : 'border-zinc-700/50') + ' rounded-2xl p-4 flex flex-col justify-between transition hover:border-gold-400/50">' +
+                   '<div>' +
+                     '<div class="w-full h-32 bg-zinc-900 rounded-xl mb-3 flex items-center justify-center border border-zinc-700/50 shadow-inner">' +
+                        '<i data-lucide="package" class="w-10 h-10 ' + (isOut ? 'text-red-500/50' : 'text-gold-400/50') + '"></i>' +
+                     '</div>' +
+                     '<h3 class="text-white font-medium text-lg leading-tight mb-1">' + p.name + '</h3>' +
+                     '<p class="text-gold-400 font-display text-2xl mb-2">$' + p.price + '</p>' +
+                   '</div>' +
+                   '<div class="mt-auto">' +
+                     '<p class="text-xs font-bold uppercase tracking-widest mb-3 ' + (isOut ? 'text-red-400' : 'text-zinc-400') + '">' + (isOut ? 'Agotado' : 'Stock: ' + p.stock) + '</p>' +
+                     '<button onclick="window.addToCart(\'' + pId + '\')" ' + (isOut ? 'disabled' : '') + ' class="w-full ' + (isOut ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-gold-500/20 text-gold-400 hover:bg-gold-500 hover:text-zinc-900') + ' py-2.5 rounded-xl font-bold transition flex items-center justify-center gap-2">' +
+                       '<i data-lucide="plus-circle" class="w-4 h-4"></i> ' + (isOut ? 'Sin Stock' : 'Agregar') +
+                     '</button>' +
+                     adminButtons +
+                   '</div>' +
+                 '</div>';
+      }).join('') : '<div class="col-span-full text-center py-12"><i data-lucide="package-x" class="w-12 h-12 text-zinc-600 mx-auto mb-3"></i><p class="text-zinc-400">Inventario vacío. Agrega tu primer producto.</p></div>';
+
+      return `
+        <div class="p-4 md:p-6 lg:p-8 fade-in h-full flex flex-col">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4 shrink-0">
+            <div>
+              <h1 class="font-display text-3xl md:text-4xl text-white uppercase tracking-wide">PUNTO DE VENTA</h1>
+              <p class="text-zinc-400 text-sm">Venta de productos e inventario</p>
+            </div>
+            ${window.currentUser.role === 'admin' ? `
+            <button onclick="window.showAddProductModal()" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 text-white px-5 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg">
+              <i data-lucide="boxes" class="w-5 h-5 text-gold-400"></i> Nuevo Producto
+            </button>
+            ` : ''}
+          </div>
+
+          <div class="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
+            <div class="flex-1 overflow-y-auto custom-scrollbar pr-2">
+              <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+                ${productsHtml}
+              </div>
+            </div>
+
+            <div class="w-full lg:w-96 flex flex-col shrink-0">
+              <div class="glass rounded-3xl border border-gold-400/30 shadow-2xl flex flex-col h-full overflow-hidden">
+                <div class="bg-zinc-800/80 p-4 border-b border-zinc-700/50">
+                  <h2 class="font-display text-2xl text-white flex items-center gap-2"><i data-lucide="shopping-cart" class="w-5 h-5 text-gold-400"></i> Carrito Actual</h2>
+                </div>
+                
+                <div id="cart-items-container" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-zinc-900/50 min-h-[200px]">
+                  </div>
+                
+                <div class="p-5 bg-zinc-800/90 border-t border-gold-400/30">
+                  <div class="flex justify-between items-end mb-4">
+                    <span class="text-zinc-400 uppercase tracking-widest text-xs font-bold">Total a Cobrar:</span>
+                    <span id="cart-total-display" class="font-display text-4xl text-green-400 leading-none">$0.00</span>
+                  </div>
+                  <button onclick="window.processSale()" id="btn-checkout" class="w-full gradient-gold text-zinc-900 py-4 rounded-xl font-bold text-lg transition flex justify-center items-center gap-2 shadow-[0_0_15px_rgba(251,191,36,0.3)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i data-lucide="banknote" class="w-6 h-6"></i> Cobrar e Imprimir
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // --- LÓGICA DEL CARRITO ---
+    window.addToCart = (productId) => {
+        const product = window.appData.products.find(p => p.id === productId);
+        if(!product || product.stock <= 0) return;
+        
+        const existingItem = window.posCart.find(item => item.id === productId);
+        if (existingItem) {
+            if (existingItem.qty < product.stock) existingItem.qty++;
+            else return showToast('No hay más stock disponible', 'warning');
+        } else {
+            window.posCart.push({ id: product.id, name: product.name, price: product.price, qty: 1 });
+        }
+        window.updateCartUI();
+    };
+
+    window.removeFromCart = (index) => {
+        window.posCart.splice(index, 1);
+        window.updateCartUI();
+    };
+
+    window.updateCartUI = () => {
+        const container = document.getElementById('cart-items-container');
+        const totalDisplay = document.getElementById('cart-total-display');
+        const btnCheckout = document.getElementById('btn-checkout');
+        
+        if (!container || !totalDisplay) return;
+
+        if (window.posCart.length === 0) {
+            container.innerHTML = '<div class="h-full flex flex-col items-center justify-center text-zinc-500 opacity-50"><i data-lucide="shopping-bag" class="w-12 h-12 mb-2"></i><p class="text-sm">Carrito vacío</p></div>';
+            totalDisplay.textContent = '$0.00';
+            btnCheckout.disabled = true;
+            lucide.createIcons();
+            return;
+        }
+
+        let total = 0;
+        container.innerHTML = window.posCart.map((item, index) => {
+            total += (item.price * item.qty);
+            return '<div class="bg-zinc-800 border border-zinc-700 p-3 rounded-xl flex justify-between items-center shadow-sm">' +
+                     '<div>' +
+                       '<p class="text-white font-medium text-sm leading-tight">' + item.name + '</p>' +
+                       '<p class="text-gold-400 text-xs font-bold mt-1">$' + item.price + ' x ' + item.qty + '</p>' +
+                     '</div>' +
+                     '<div class="flex items-center gap-3">' +
+                       '<p class="text-white font-bold">$' + (item.price * item.qty).toFixed(2) + '</p>' +
+                       '<button onclick="window.removeFromCart(' + index + ')" class="text-zinc-500 hover:text-red-400 p-1.5 bg-zinc-900 rounded-lg transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>' +
+                     '</div>' +
+                   '</div>';
+        }).join('');
+        
+        totalDisplay.textContent = '$' + total.toFixed(2);
+        btnCheckout.disabled = false;
+        lucide.createIcons();
+    };
+
+    // Al entrar a la vista, renderizamos el carrito
+    const originalRenderCurrentView = window.renderCurrentView;
+    window.renderCurrentView = () => {
+        originalRenderCurrentView();
+        if(window.currentView === 'pos') setTimeout(window.updateCartUI, 100);
+    };
+
+    // --- COBRO Y DESCUENTO DE STOCK ---
+    window.processSale = async () => {
+        if(window.posCart.length === 0) return;
+        if(!confirm('¿Confirmas el cobro de estos productos? Se descontarán del inventario automáticamente.')) return;
+
+        const btn = document.getElementById('btn-checkout');
+        btn.disabled = true; btn.innerHTML = 'Procesando...';
+
+        let total = 0;
+        const itemsToSave = window.posCart.map(item => {
+            total += (item.price * item.qty);
+            return { id: item.id, name: item.name, price: item.price, qty: item.qty };
+        });
+
+        const today = new Date();
+        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const timeStr = `${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
+
+        try {
+            // 1. Guardar la venta en Firebase
+            const saleData = {
+                type: 'product_sale',
+                items: itemsToSave,
+                total: total,
+                date: dateStr,
+                time: timeStr,
+                created_at: today.toISOString(),
+                seller_id: window.currentUser.id,
+                branch_id: window.currentUser.branch_id || 'main'
+            };
+            const saleRef = await addDoc(collection(db, "product_sales"), saleData);
+
+            // 2. Descontar Stock de los productos
+            for (let item of window.posCart) {
+                const product = window.appData.products.find(p => p.id === item.id);
+                if (product) {
+                    const newStock = product.stock - item.qty;
+                    await updateDoc(doc(db, "products", item.id), { stock: newStock });
+                }
+            }
+
+            showToast('Venta exitosa', 'success');
+            window.printProductTicket(saleData, saleRef.id); // Llamar al ticket
+            window.posCart = []; // Vaciar carrito
+            window.updateCartUI();
+
+        } catch (error) {
+            console.error(error);
+            showToast('Error al procesar la venta', 'error');
+            btn.disabled = false; btn.innerHTML = '<i data-lucide="banknote" class="w-6 h-6"></i> Cobrar e Imprimir'; lucide.createIcons();
+        }
+    };
+
+    // --- GENERADOR DE TICKET TÉRMICO ---
+    window.printProductTicket = (sale, ticketId) => {
+        const localBrand = JSON.parse(localStorage.getItem('barber_branding') || '{}');
+        const shopName = localBrand.shopName || 'BARBERPRO';
+        
+        let itemsHtml = '';
+        sale.items.forEach(i => {
+            itemsHtml += `<div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                            <span style="flex:1;">${i.qty}x ${i.name}</span>
+                            <span>$${(i.price * i.qty).toFixed(2)}</span>
+                          </div>`;
+        });
+
+        const ticketHtml = `
+            <div style="font-family: monospace; width: 300px; margin: 0 auto; padding: 20px; background: white; color: black; border: 1px solid #ddd; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div style="text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">
+                    <h2 style="margin: 0; font-size: 24px; font-weight: bold; text-transform: uppercase;">${shopName}</h2>
+                    <p style="margin: 4px 0 0 0; font-size: 12px;">TICKET DE COMPRA</p>
+                </div>
+                <div style="font-size: 12px; margin-bottom: 10px;">
+                    <p style="margin: 2px 0;">Folio: #${ticketId.substring(0,6).toUpperCase()}</p>
+                    <p style="margin: 2px 0;">Fecha: ${formatDate(sale.date)} ${window.formatTime12h(sale.time)}</p>
+                </div>
+                <div style="border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">
+                    ${itemsHtml}
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-bottom: 20px;">
+                    <span>TOTAL:</span>
+                    <span>$${sale.total.toFixed(2)}</span>
+                </div>
+                <div style="text-align: center; font-size: 11px;">
+                    <p>¡Gracias por tu preferencia!</p>
+                    <p>Conserva este ticket para cualquier aclaración.</p>
+                </div>
+            </div>
+        `;
+
+        window.showModal(`
+            <div class="p-6 flex flex-col items-center">
+                <div class="flex justify-between items-center w-full mb-4">
+                    <h2 class="font-display text-2xl text-white uppercase tracking-wide">Ticket de Venta</h2>
+                    <button onclick="window.closeModal()" class="text-zinc-400 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
+                </div>
+                <div id="print-pos-area" class="mb-6 w-full flex justify-center">${ticketHtml}</div>
+                <div class="flex gap-3 w-full max-w-sm">
+                    <button onclick="window.closeModal()" class="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white py-3 rounded-xl font-bold transition">Cerrar</button>
+                    <button onclick="window.printElement('print-pos-area')" class="flex-1 gradient-gold text-zinc-900 py-3 rounded-xl font-bold transition shadow-lg flex justify-center items-center gap-2">
+                        <i data-lucide="printer" class="w-5 h-5"></i> Imprimir
+                    </button>
+                </div>
+            </div>
+        `);
+    };
+
+    // --- CRUD DE INVENTARIO (AGREGAR PRODUCTOS) ---
+    window.showAddProductModal = () => {
+        window.showModal(`
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="font-display text-2xl text-white tracking-wide uppercase">NUEVO PRODUCTO</h2>
+                    <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <div class="space-y-4 mb-6">
+                    <div>
+                        <label class="block text-sm text-zinc-400 mb-2">Nombre del Producto</label>
+                        <input type="text" id="nprod-name" placeholder="Ej: Cera Mate Suavecito" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm text-zinc-400 mb-2">Precio de Venta ($)</label>
+                            <input type="number" id="nprod-price" placeholder="250" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-zinc-400 mb-2">Stock Inicial (Piezas)</label>
+                            <input type="number" id="nprod-stock" placeholder="10" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+                <button onclick="window.saveNewProduct()" class="w-full gradient-gold text-zinc-900 py-4 rounded-xl font-bold hover:opacity-90 transition flex items-center justify-center gap-2 shadow-lg">
+                    <i data-lucide="save" class="w-5 h-5"></i> Guardar Producto
+                </button>
+            </div>
+        `);
+    };
+
+    window.saveNewProduct = async () => {
+        const name = document.getElementById('nprod-name').value.trim();
+        const price = document.getElementById('nprod-price').value;
+        const stock = document.getElementById('nprod-stock').value;
+
+        if(!name || !price || !stock) return showToast('Llena todos los campos', 'error');
+
+        try {
+            await addDoc(collection(db, "products"), {
+                name: name,
+                price: Number(price),
+                stock: Number(stock),
+                created_at: new Date().toISOString()
+            });
+            window.closeModal();
+            showToast('Producto agregado al inventario', 'success');
+        } catch(e) {
+            showToast('Error al guardar', 'error');
+        }
+    };
+
+    // ==========================================
+    // --- EDITAR Y ELIMINAR PRODUCTOS (ADMIN) ---
+    // ==========================================
+    
+    window.showEditProductModal = (id) => {
+        const productsList = window.appData.products || [];
+        const product = productsList.find(p => (p.id || p.__backendId) === id);
+        
+        if (!product) {
+            showToast('Error: Producto no encontrado', 'error');
+            return;
+        }
+
+        window.showModal(`
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="font-display text-2xl text-white tracking-wide uppercase">EDITAR PRODUCTO</h2>
+                    <button onclick="window.closeModal()" class="p-2 text-zinc-400 hover:text-white transition"><i data-lucide="x" class="w-5 h-5"></i></button>
+                </div>
+                <div class="space-y-4 mb-6">
+                    <div>
+                        <label class="block text-sm text-zinc-400 mb-2">Nombre del Producto</label>
+                        <input type="text" id="eprod-name" value="${product.name}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm text-zinc-400 mb-2">Precio de Venta ($)</label>
+                            <input type="number" id="eprod-price" value="${product.price}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-zinc-400 mb-2">Stock (Piezas)</label>
+                            <input type="number" id="eprod-stock" value="${product.stock}" class="w-full bg-zinc-700/50 border border-zinc-600 rounded-xl py-3 px-4 text-white focus:border-gold-400 focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+                <button id="btn-update-product" onclick="window.updateProduct('${id}')" class="w-full bg-blue-500 hover:bg-blue-400 text-white py-4 rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg">
+                    <i data-lucide="edit-2" class="w-5 h-5"></i> Guardar Cambios
+                </button>
+            </div>
+        `);
+    };
+
+    window.updateProduct = async (id) => {
+        const name = document.getElementById('eprod-name').value.trim();
+        const price = document.getElementById('eprod-price').value;
+        const stock = document.getElementById('eprod-stock').value;
+        const btn = document.getElementById('btn-update-product');
+
+        if(!name || !price || !stock) return showToast('Llena todos los campos', 'error');
+
+        try {
+            if(btn) btn.innerHTML = 'Guardando...';
+            await updateDoc(doc(db, "products", id), {
+                name: name,
+                price: Number(price),
+                stock: Number(stock)
+            });
+            window.closeModal();
+            showToast('Producto actualizado correctamente', 'success');
+        } catch(e) {
+            showToast('Error al actualizar', 'error');
+            if(btn) { btn.innerHTML = '<i data-lucide="edit-2" class="w-5 h-5"></i> Guardar Cambios'; lucide.createIcons(); }
+        }
+    };
+
+    window.deleteProduct = async (id) => {
+        if(confirm('¿Estás seguro de eliminar este producto del inventario permanentemente?')) {
+            try {
+                await deleteDoc(doc(db, "products", id));
+                showToast('Producto eliminado', 'success');
+            } catch(e) {
+                showToast('Error al eliminar producto', 'error');
+            }
+        }
+    };
+
+    // ==========================================
+    // --- HISTORIAL DE VENTAS POS Y DEVOLUCIÓN ---
+    // ==========================================
+    function renderProductSalesHistory() {
+      const sales = window.appData.product_sales || [];
+      
+      // Ordenar de más reciente a más antigua
+      sales.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      const rowsHtml = sales.length > 0 ? sales.map(s => {
+          const sId = s.id || s.__backendId;
+          const itemsList = s.items.map(i => `<span class="bg-zinc-700/50 px-2 py-1 rounded text-xs text-zinc-300 mr-1 mb-1 inline-block">${i.qty}x ${i.name}</span>`).join('');
+          
+          return '<tr class="text-white border-b border-zinc-700/50 hover:bg-zinc-800/50 transition">' +
+                   '<td class="py-4 px-6">' +
+                     '<p class="font-medium">' + formatDate(s.date) + '</p>' +
+                     '<p class="text-xs text-gold-400 font-bold tracking-widest mt-1"><i data-lucide="clock" class="w-3 h-3 inline mr-1"></i>' + window.formatTime12h(s.time) + '</p>' +
+                   '</td>' +
+                   '<td class="py-4 px-6 max-w-xs">' + itemsList + '</td>' +
+                   '<td class="py-4 px-6 font-display text-2xl text-green-400">$' + s.total.toFixed(2) + '</td>' +
+                   '<td class="py-4 px-6 text-right">' +
+                     '<div class="flex justify-end gap-2">' +
+                       '<button onclick="window.viewProductTicket(\'' + sId + '\')" class="text-zinc-500 hover:text-gold-400 bg-zinc-900 p-2.5 rounded-lg transition border border-transparent hover:border-gold-400/30" title="Ver Comprobante">' +
+                         '<i data-lucide="receipt" class="w-4 h-4"></i>' +
+                       '</button>' +
+                       '<button onclick="window.deleteProductSale(\'' + sId + '\')" class="text-zinc-500 hover:text-red-400 bg-zinc-900 p-2.5 rounded-lg transition border border-transparent hover:border-red-500/30" title="Anular Venta y Restaurar Stock">' +
+                         '<i data-lucide="trash-2" class="w-4 h-4"></i>' +
+                       '</button>' +
+                     '</div>' +
+                   '</td>' +
+                 '</tr>';
+      }).join('') : '<tr><td colspan="4" class="text-center py-16 text-zinc-500"><i data-lucide="shopping-bag" class="w-12 h-12 mx-auto mb-3 opacity-20"></i><p>No hay ventas de productos registradas</p></td></tr>';
+
+      return `
+        <div class="p-4 md:p-6 lg:p-8 fade-in flex flex-col h-full">
+          <div class="mb-6 md:mb-8 shrink-0">
+            <h1 class="font-display text-3xl md:text-4xl text-white uppercase tracking-wide">HISTORIAL DEL PUNTO DE VENTA</h1>
+            <p class="text-zinc-400 text-sm mt-1">Registro de ventas de productos. Anular una venta restaurará automáticamente el stock.</p>
+          </div>
+          
+          <div class="glass rounded-3xl p-3 md:p-0 border border-zinc-700/50 shadow-2xl overflow-hidden flex-1 min-h-0">
+            <div class="overflow-y-auto h-full custom-scrollbar">
+                <table class="w-full text-left min-w-[700px]">
+                  <thead class="bg-zinc-800/90 text-gold-400 text-xs uppercase tracking-widest sticky top-0 z-10 backdrop-blur-sm">
+                    <tr>
+                      <th class="px-6 py-5 rounded-tl-3xl">Fecha y Hora</th>
+                      <th class="px-6 py-5">Artículos Vendidos</th>
+                      <th class="px-6 py-5">Total Cobrado</th>
+                      <th class="px-6 py-5 text-right rounded-tr-3xl">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-zinc-700/30">
+                    ${rowsHtml}
+                  </tbody>
+                </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Lógica para Anular Venta y devolver Stock
+    window.deleteProductSale = async (id) => {
+        const sale = window.appData.product_sales.find(s => (s.id || s.__backendId) === id);
+        
+        if (!sale) return showToast('Venta no encontrada', 'error');
+
+        if (!confirm('¿Estás seguro de ANULAR esta venta?\n\nEl dinero se restará de tus ingresos y los productos se sumarán de vuelta a tu inventario automáticamente.')) {
+            return;
+        }
+
+        try {
+            showToast('Procesando devolución...', 'info');
+
+            // 1. Regresar el stock al inventario
+            if (sale.items && sale.items.length > 0) {
+                for (let item of sale.items) {
+                    // Buscar el producto actual en la base de datos
+                    const product = window.appData.products.find(p => (p.id || p.__backendId) === item.id);
+                    if (product) {
+                        const newStock = product.stock + item.qty; // Sumamos la cantidad vendida al stock actual
+                        await updateDoc(doc(db, "products", item.id), { stock: newStock });
+                    }
+                }
+            }
+
+            // 2. Eliminar el registro de la venta del historial
+            await deleteDoc(doc(db, "product_sales", id));
+            
+            showToast('Venta anulada y stock restaurado con éxito', 'success');
+        } catch (error) {
+            console.error(error);
+            showToast('Error al anular la venta', 'error');
+        }
+    };
+
+    // Función para abrir el ticket desde el historial
+    window.viewProductTicket = (id) => {
+        // Buscamos los datos de la venta en la memoria
+        const sale = window.appData.product_sales.find(s => (s.id || s.__backendId) === id);
+        
+        if (!sale) {
+            return showToast('Error: Venta no encontrada', 'error');
+        }
+        
+        // Reutilizamos el generador de tickets térmicos que ya existe en tu sistema POS
+        window.printProductTicket(sale, id);
+    };
 
 
 
