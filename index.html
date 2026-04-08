@@ -1082,6 +1082,7 @@ onAuthStateChanged(auth, async (user) => {
           }
       });
 
+      
       // 2. Sumamos todos los gastos operativos
       let dashboardExpenses = window.appData.expenses || [];
       if (window.currentBranch && window.currentBranch.__backendId !== 'main') {
@@ -1092,7 +1093,17 @@ onAuthStateChanged(auth, async (user) => {
           totalGastos += Number(e.amount);
       });
 
-      // 3. LA FÓRMULA EXACTA: Ingresos - (La parte de los Barberos) - Gastos
+      // 2.5 Sumamos las ventas del Punto de Venta (Productos)
+      let dashboardProductSales = window.appData.product_sales || [];
+      if (window.currentBranch && window.currentBranch.__backendId !== 'main') {
+          dashboardProductSales = dashboardProductSales.filter(s => s.branch_id === window.currentBranch.__backendId);
+      }
+      
+      dashboardProductSales.forEach(sale => {
+          totalBruto += Number(sale.total || 0); // El producto va íntegro al ingreso bruto
+      });
+
+      // 3. LA FÓRMULA EXACTA: Ingresos (Servicios + Productos) - (La parte de los Barberos) - Gastos
       const gananciaNeta = totalBruto - totalComisionesBarberos - totalGastos;
 
       // Generar HTML de Citas Pendientes
@@ -2303,7 +2314,10 @@ onAuthStateChanged(auth, async (user) => {
                       <th class="pb-4 px-4 font-medium">Cliente</th>
                       <th class="pb-4 px-4 font-medium">Servicio</th>
                       <th class="pb-4 px-4 font-medium">Barbero</th>
-                      <th class="pb-4 px-4 font-medium text-right">Estado</th>
+                      // Busca esta línea:
+<th class="pb-4 px-4 font-medium text-right">Estado</th>
+// Agrega esto justo después:
+<th class="pb-4 px-4 font-medium text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-zinc-700/50">
@@ -2323,7 +2337,14 @@ onAuthStateChanged(auth, async (user) => {
                         <td class="py-4 px-4 font-medium">${clientName} ${badgeHtml}</td>
                         <td class="py-4 px-4 text-zinc-300">${s.name}</td>
                         <td class="py-4 px-4 text-zinc-400"><i data-lucide="user" class="w-3 h-3 inline mr-1"></i>${b.name}</td>
-                        <td class="py-4 px-4 text-right"><span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${getStatusColor(apt.status)}">${getStatusLabel(apt.status)}</span></td>
+                        <td class="py-4 px-4 text-right">
+                            <div class="flex justify-end items-center gap-2">
+                                <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${getStatusColor(apt.status)}">${getStatusLabel(apt.status)}</span>
+                                <button onclick="window.deleteAppointment('${apt.id || apt.__backendId}', '${apt.status}')" class="p-2 text-zinc-500 hover:text-red-400 transition bg-zinc-900/50 rounded-lg border border-zinc-700 hover:border-red-500/30" title="Eliminar Cita">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
                       </tr>`;
                     }).join('')}
                   </tbody>
@@ -2344,7 +2365,12 @@ onAuthStateChanged(auth, async (user) => {
                           <p class="font-display text-2xl text-gold-400 leading-none">${apt.time}</p>
                           <p class="text-xs text-zinc-400 mt-1"><i data-lucide="calendar" class="w-3 h-3 inline mr-1"></i>${formatDate(apt.date)}</p>
                         </div>
-                        <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${getStatusColor(apt.status)}">${getStatusLabel(apt.status)}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${getStatusColor(apt.status)}">${getStatusLabel(apt.status)}</span>
+                            <button onclick="window.deleteAppointment('${apt.id || apt.__backendId}', '${apt.status}')" class="p-2 text-zinc-400 hover:text-red-400 bg-zinc-900/80 rounded-lg transition" title="Eliminar Cita">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
                       </div>
                       
                       <div class="mb-4">
@@ -2616,13 +2642,22 @@ window.sendUserPasswordReset = async (email) => {
       const todayStr = toDateString(today);
 
       // --- CÁLCULOS DEL MES ACTUAL ---
-      // 1. Ingresos
+      // --- CÁLCULOS DEL MES ACTUAL ---
+      // 1. Ingresos (Servicios + Productos)
+      const productSales = window.appData.product_sales || [];
+      const monthlyProductSales = productSales
+        .filter(s => {
+           const sDate = new Date(s.date + "T00:00:00");
+           return sDate.getMonth() === currentMonth && sDate.getFullYear() === currentYear;
+        })
+        .reduce((sum, s) => sum + Number(s.total || 0), 0);
+
       const monthlySales = completedAppointments
         .filter(a => {
            const aptDate = new Date(a.date + "T00:00:00");
            return aptDate.getMonth() === currentMonth && aptDate.getFullYear() === currentYear;
         })
-        .reduce((sum, a) => sum + getPrice(a), 0);
+        .reduce((sum, a) => sum + getPrice(a), 0) + monthlyProductSales;
 
       // 2. Nóminas pagadas/generadas
       let monthlyPayroll = 0;
@@ -2728,6 +2763,8 @@ window.sendUserPasswordReset = async (email) => {
       let dataGastos = [];
       const today = new Date();
 
+      const productSales = window.appData.product_sales || [];
+
       if (period === 'week') {
         for (let i = 6; i >= 0; i--) {
           const d = new Date(); d.setDate(today.getDate() - i);
@@ -2735,7 +2772,10 @@ window.sendUserPasswordReset = async (email) => {
           labels.push(d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }));
           
           const dailyApts = completedAppointments.filter(a => a.date === dateStr);
-          dataIngresos.push(dailyApts.reduce((sum, a) => sum + getPrice(a), 0));
+          const dailyProductSales = productSales.filter(s => s.date === dateStr);
+          const dailyProductTotal = dailyProductSales.reduce((sum, s) => sum + Number(s.total || 0), 0);
+          
+          dataIngresos.push(dailyApts.reduce((sum, a) => sum + getPrice(a), 0) + dailyProductTotal);
           dataNominas.push(dailyApts.reduce((sum, a) => sum + getCommission(a), 0));
           dataGastos.push(expenses.filter(e => e.date === dateStr).reduce((sum, e) => sum + Number(e.amount), 0));
         }
@@ -2746,7 +2786,10 @@ window.sendUserPasswordReset = async (email) => {
           labels.push(d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }));
           
           const dailyApts = completedAppointments.filter(a => a.date === dateStr);
-          dataIngresos.push(dailyApts.reduce((sum, a) => sum + getPrice(a), 0));
+          const dailyProductSales = productSales.filter(s => s.date === dateStr);
+          const dailyProductTotal = dailyProductSales.reduce((sum, s) => sum + Number(s.total || 0), 0);
+          
+          dataIngresos.push(dailyApts.reduce((sum, a) => sum + getPrice(a), 0) + dailyProductTotal);
           dataNominas.push(dailyApts.reduce((sum, a) => sum + getCommission(a), 0));
           dataGastos.push(expenses.filter(e => e.date === dateStr).reduce((sum, e) => sum + Number(e.amount), 0));
         }
@@ -2762,8 +2805,14 @@ window.sendUserPasswordReset = async (email) => {
               const ad = new Date(a.date + "T00:00:00");
               return ad.getMonth() === targetMonth && ad.getFullYear() === targetYear;
           });
+          const monthProductSales = productSales.filter(s => {
+              const sd = new Date(s.date + "T00:00:00");
+              return sd.getMonth() === targetMonth && sd.getFullYear() === targetYear;
+          });
           
-          dataIngresos.push(monthApts.reduce((sum, a) => sum + getPrice(a), 0));
+          const monthProductTotal = monthProductSales.reduce((sum, s) => sum + Number(s.total || 0), 0);
+          
+          dataIngresos.push(monthApts.reduce((sum, a) => sum + getPrice(a), 0) + monthProductTotal);
           dataNominas.push(monthApts.reduce((sum, a) => sum + getCommission(a), 0));
           
           dataGastos.push(expenses.filter(e => {
@@ -3326,6 +3375,32 @@ function renderBranches() {
       try { await updateDoc(doc(db, "appointments", id), { status }); showToast('Cita ' + status, 'success'); } 
       catch(e) { showToast('Error al actualizar', 'error'); }
     }
+
+    // ==========================================
+    // --- ELIMINAR CITA (ADMIN) ---
+    // ==========================================
+    window.deleteAppointment = async (id, status) => {
+        let mensaje = "¿Estás seguro de eliminar esta cita permanentemente?";
+        
+        // Si la cita está completada, advertimos sobre las finanzas
+        if (status === 'completed') {
+            mensaje = "⚠️ ATENCIÓN: Esta cita ya está marcda como COMPLETADA.\n\nAl eliminarla, los ingresos de este servicio y la comisión del barbero se restarán automáticamente de tu Dashboard y Estadísticas. ¿Deseas continuar?";
+        }
+
+        if (confirm(mensaje)) {
+            try {
+                showToast('Eliminando registro...', 'info');
+                
+                // Eliminamos de la colección 'appointments'
+                await deleteDoc(doc(db, "appointments", id));
+                
+                showToast('Cita eliminada. Las finanzas se han recalculado.', 'success');
+            } catch (error) {
+                console.error("Error al eliminar cita:", error);
+                showToast('Error de permisos o conexión al eliminar', 'error');
+            }
+        }
+    };
     
     window.showCancelModal = (id) => {
       window.showModal(`
@@ -5396,7 +5471,7 @@ function renderBranches() {
                     <span class="text-zinc-400 uppercase tracking-widest text-xs font-bold">Total a Cobrar:</span>
                     <span id="cart-total-display" class="font-display text-4xl text-green-400 leading-none">$0.00</span>
                   </div>
-                  <button onclick="window.processSale()" id="btn-checkout" class="w-full gradient-gold text-zinc-900 py-4 rounded-xl font-bold text-lg transition flex justify-center items-center gap-2 shadow-[0_0_15px_rgba(251,191,36,0.3)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">
+                 <button onclick="window.showCheckoutModal()" id="btn-checkout" class="w-full gradient-gold text-zinc-900 py-4 rounded-xl font-bold text-lg transition flex justify-center items-center gap-2 shadow-[0_0_15px_rgba(251,191,36,0.3)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">
                     <i data-lucide="banknote" class="w-6 h-6"></i> Cobrar e Imprimir
                   </button>
                 </div>
@@ -5469,30 +5544,94 @@ function renderBranches() {
         if(window.currentView === 'pos') setTimeout(window.updateCartUI, 100);
     };
 
-    // --- COBRO Y DESCUENTO DE STOCK ---
-    window.processSale = async () => {
+    // --- MODAL DE COBRO Y CÁLCULO DE CAMBIO ---
+    window.showCheckoutModal = () => {
         if(window.posCart.length === 0) return;
-        if(!confirm('¿Confirmas el cobro de estos productos? Se descontarán del inventario automáticamente.')) return;
+        
+        let total = 0;
+        window.posCart.forEach(item => total += (item.price * item.qty));
+        
+        window.showModal(`
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="font-display text-2xl text-white uppercase tracking-wide">COBRO DE PRODUCTOS</h2>
+                    <button onclick="window.closeModal()" class="text-zinc-400 hover:text-white transition"><i data-lucide="x" class="w-6 h-6"></i></button>
+                </div>
+                
+                <div class="text-center mb-6">
+                    <p class="text-zinc-400 text-sm font-bold uppercase tracking-widest mb-1">Total a Pagar</p>
+                    <p class="font-display text-5xl text-green-400">$${total.toFixed(2)}</p>
+                </div>
+                
+                <div class="space-y-4 mb-6">
+                    <div>
+                        <label class="block text-sm text-zinc-400 mb-2 font-bold uppercase tracking-wider">¿Con cuánto paga el cliente?</label>
+                        <div class="relative">
+                            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 font-display text-2xl">$</span>
+                            <input type="number" id="checkout-tendered" placeholder="Ej. 500" class="w-full bg-zinc-900 border border-zinc-600 rounded-xl py-4 pl-10 pr-4 text-white font-display text-3xl focus:border-gold-400 outline-none transition" oninput="window.calculateChange(${total})">
+                        </div>
+                    </div>
+                    <div class="bg-zinc-800/50 border border-zinc-700 rounded-xl p-4 flex justify-between items-center">
+                        <p class="text-zinc-400 text-sm font-bold uppercase tracking-wider">Cambio a Devolver:</p>
+                        <p id="checkout-change" class="font-display text-3xl text-gold-400">$0.00</p>
+                    </div>
+                </div>
+                
+                <button id="btn-confirm-sale" onclick="window.processSaleWithPayment()" class="w-full gradient-gold text-zinc-900 py-4 rounded-xl font-bold text-lg transition flex justify-center items-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <i data-lucide="check-circle" class="w-6 h-6"></i> Confirmar Venta
+                </button>
+            </div>
+        `);
+        
+        // Pone el cursor automáticamente en el input para que escribas rápido
+        setTimeout(() => document.getElementById('checkout-tendered').focus(), 100);
+    };
 
-        const btn = document.getElementById('btn-checkout');
-        btn.disabled = true; btn.innerHTML = 'Procesando...';
+    window.calculateChange = (total) => {
+        const tendered = Number(document.getElementById('checkout-tendered').value);
+        const changeEl = document.getElementById('checkout-change');
+        const btnConfirm = document.getElementById('btn-confirm-sale');
+        
+        if (tendered >= total) {
+            const change = tendered - total;
+            changeEl.textContent = '$' + change.toFixed(2);
+            changeEl.classList.replace('text-red-400', 'text-gold-400');
+            btnConfirm.disabled = false;
+        } else {
+            changeEl.textContent = 'Falta dinero';
+            changeEl.classList.replace('text-gold-400', 'text-red-400');
+            btnConfirm.disabled = true;
+        }
+    };
 
+    // --- COBRO Y DESCUENTO DE STOCK ---
+    window.processSaleWithPayment = async () => {
+        const tendered = Number(document.getElementById('checkout-tendered').value);
+        const btn = document.getElementById('btn-confirm-sale');
+        
         let total = 0;
         const itemsToSave = window.posCart.map(item => {
             total += (item.price * item.qty);
             return { id: item.id, name: item.name, price: item.price, qty: item.qty };
         });
 
+        if (tendered < total) return showToast('El monto recibido es insuficiente', 'error');
+        const change = tendered - total;
+
+        btn.disabled = true; btn.innerHTML = 'Procesando...';
+
         const today = new Date();
         const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
         const timeStr = `${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
 
         try {
-            // 1. Guardar la venta en Firebase
+            // 1. Guardar la venta en Firebase con datos de pago
             const saleData = {
                 type: 'product_sale',
                 items: itemsToSave,
                 total: total,
+                tendered: tendered, // Guardamos con cuánto pagó
+                change: change,     // Guardamos el cambio
                 date: dateStr,
                 time: timeStr,
                 created_at: today.toISOString(),
@@ -5518,7 +5657,7 @@ function renderBranches() {
         } catch (error) {
             console.error(error);
             showToast('Error al procesar la venta', 'error');
-            btn.disabled = false; btn.innerHTML = '<i data-lucide="banknote" class="w-6 h-6"></i> Cobrar e Imprimir'; lucide.createIcons();
+            btn.disabled = false; btn.innerHTML = '<i data-lucide="check-circle" class="w-6 h-6"></i> Confirmar Venta'; lucide.createIcons();
         }
     };
 
@@ -5548,9 +5687,17 @@ function renderBranches() {
                 <div style="border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px;">
                     ${itemsHtml}
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-bottom: 8px;">
                     <span>TOTAL:</span>
                     <span>$${sale.total.toFixed(2)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px;">
+                    <span>Efectivo:</span>
+                    <span>$${(sale.tendered || sale.total).toFixed(2)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 20px;">
+                    <span>Cambio:</span>
+                    <span>$${(sale.change || 0).toFixed(2)}</span>
                 </div>
                 <div style="text-align: center; font-size: 11px;">
                     <p>¡Gracias por tu preferencia!</p>
